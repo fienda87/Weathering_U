@@ -59,3 +59,8 @@ server.log
 /backend/target/
 /backend/Cargo.lock
 /backend/.env
+
+# Test outputs
+/tmp/
+*.log
+e2e_test_*.txt
