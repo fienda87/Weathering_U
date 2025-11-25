@@ -7,6 +7,8 @@ pub struct Config {
     pub api_base_url: String,
     pub api_key: Option<String>,
     pub cors_origins: Vec<String>,
+    pub openweather_key: String,
+    pub weatherapi_key: String,
 }
 
 impl Config {
@@ -27,11 +29,19 @@ impl Config {
             .map(|s| s.trim().to_string())
             .collect();
 
+        let openweather_key = env::var("OPENWEATHER_API_KEY")
+            .unwrap_or_else(|_| "your-key-here".to_string());
+
+        let weatherapi_key = env::var("WEATHERAPI_KEY")
+            .unwrap_or_else(|_| "your-key-here".to_string());
+
         Self {
             server_port,
             api_base_url,
             api_key,
             cors_origins,
+            openweather_key,
+            weatherapi_key,
         }
     }
 }

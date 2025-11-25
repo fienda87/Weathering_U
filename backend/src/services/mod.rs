@@ -2,6 +2,11 @@ use reqwest::Client;
 use serde_json::Value;
 use std::time::Duration;
 
+pub mod providers;
+pub mod weather_service;
+
+pub use weather_service::WeatherService;
+
 pub struct ApiService {
     client: Client,
     base_url: String,
