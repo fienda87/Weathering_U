@@ -13,6 +13,7 @@ mod cities;
 
 use utils::{Config, init_logger};
 use routes::routes;
+use services::WeatherService;
 
 #[launch]
 async fn rocket() -> _ {
@@ -23,6 +24,12 @@ async fn rocket() -> _ {
     init_logger();
     
     info!("Starting IndoPrint API server on port {}", config.server_port);
+    
+    // Create weather service
+    let weather_service = WeatherService::new(
+        config.openweather_key.clone(),
+        config.weatherapi_key.clone(),
+    );
     
     // Configure CORS
     let allowed_origins = AllowedOrigins::some_exact(&config.cors_origins);
@@ -47,6 +54,7 @@ async fn rocket() -> _ {
         .merge(("address", "0.0.0.0"));
 
     rocket::custom(figment)
+        .manage(weather_service)
         .attach(cors)
         .attach(AdHoc::on_request("Request Logger", |req, _| {
             Box::pin(async move {

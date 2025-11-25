@@ -2,6 +2,10 @@ use rocket::{get, routes};
 use rocket::serde::json::Json;
 use serde_json::Value;
 
+pub mod weather;
+
+use weather::get_weather;
+
 #[get("/")]
 pub fn index() -> Json<Value> {
     Json(serde_json::json!({
@@ -20,5 +24,5 @@ pub fn health() -> Json<Value> {
 }
 
 pub fn routes() -> Vec<rocket::Route> {
-    routes![index, health]
+    routes![index, health, get_weather]
 }
