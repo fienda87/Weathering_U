@@ -6,7 +6,7 @@ use log::info;
 pub mod weather;
 pub mod health;
 
-use weather::{get_cities, get_weather};
+use weather::{get_cities, get_weather, get_weather_parallel};
 
 #[get("/")]
 pub fn index() -> Json<Value> {
@@ -19,5 +19,5 @@ pub fn index() -> Json<Value> {
 }
 
 pub fn routes() -> Vec<rocket::Route> {
-    routes![index, health::health, get_cities, get_weather]
+    routes![index, health::health, get_cities, get_weather, get_weather_parallel]
 }

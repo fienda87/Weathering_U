@@ -1,12 +1,15 @@
-use crate::models::WeatherForecast;
+use crate::models::{WeatherForecast, City};
 use log::{info, warn, error};
 use chrono::Utc;
+use std::sync::Arc;
+use tokio::sync::Semaphore;
 
 use super::providers::{
     fetch_open_meteo, 
     fetch_openweather, 
     fetch_weatherapi
 };
+use super::parallel_forecast::{fetch_forecast_parallel, fetch_forecast_with_rate_limit};
 
 pub struct WeatherService {
     pub openweather_key: String,
@@ -110,6 +113,33 @@ impl WeatherService {
              Please try again later or check your API configuration."
                 .to_string(),
         )
+    }
+
+    /// Get weather forecast using parallel processing (7 concurrent tasks)
+    /// 
+    /// Spawns 7 tasks, one for each day, with proper error handling and metrics
+    pub async fn get_forecast_parallel(
+        &self,
+        city: &City,
+    ) -> Result<WeatherForecast, String> {
+        info!("Getting parallel weather forecast for city={}, lat={}, lon={}", 
+              city.name, city.latitude, city.longitude);
+
+        fetch_forecast_parallel(city, &self.openweather_key, &self.weatherapi_key).await
+    }
+
+    /// Get weather forecast with semaphore-based rate limiting
+    /// 
+    /// Limits concurrent API calls to prevent overwhelming providers
+    pub async fn get_forecast_rate_limited(
+        &self,
+        city: &City,
+        semaphore: Arc<Semaphore>,
+    ) -> Result<WeatherForecast, String> {
+        info!("Getting rate-limited weather forecast for city={}, lat={}, lon={}", 
+              city.name, city.latitude, city.longitude);
+
+        fetch_forecast_with_rate_limit(city, semaphore, &self.openweather_key, &self.weatherapi_key).await
     }
 }
 
