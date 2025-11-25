@@ -26,13 +26,6 @@
           >
             Weather
           </router-link>
-          <router-link 
-            to="/contact" 
-            class="text-blue-100 hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200"
-            :class="{ 'text-white border-b-2 border-yellow-400': $route.name === 'Contact' }"
-          >
-            Contact
-          </router-link>
         </div>
       </div>
     </div>
