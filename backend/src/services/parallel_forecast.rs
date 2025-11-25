@@ -1,4 +1,4 @@
-use crate::models::{City, WeatherForecast};
+use crate::models::{City, DailyForecast, WeatherForecast};
 use crate::services::daily_processor::process_day;
 use futures::future::join_all;
 use log::{info, warn, error};
@@ -60,9 +60,7 @@ impl TaskMetrics {
         
         if !self.task_start_times.is_empty() {
             for (i, (start, end)) in self.task_start_times.iter().zip(self.task_end_times.iter()).enumerate() {
-                if let Some(end_time) = end {
-                    info!("Day {} processing time: {:?}", i, end_time.duration_since(*start));
-                }
+                info!("Day {} processing time: {:?}", i, end.duration_since(*start));
             }
         }
         info!("============================================");
@@ -115,8 +113,8 @@ pub async fn fetch_forecast_parallel(
             }
             Ok(Err(e)) => {
                 metrics.failed_tasks += 1;
+                warn!("Day {} failed: {}", day_index, &e);
                 failed_days.push((day_index, e));
-                warn!("Day {} failed: {}", day_index, e);
             }
             Err(e) => {
                 metrics.failed_tasks += 1;
@@ -147,6 +145,7 @@ pub async fn fetch_forecast_parallel(
         }
     }
 
+    let num_days = successful_days.len();
     let forecast = WeatherForecast {
         city: city.name.to_string(),
         province: city.province.to_string(),
@@ -157,7 +156,7 @@ pub async fn fetch_forecast_parallel(
         forecast: successful_days,
     };
 
-    info!("Parallel forecast processing completed: {} successful days out of 7", successful_days.len());
+    info!("Parallel forecast processing completed: {} successful days out of 7", num_days);
     Ok(forecast)
 }
 
@@ -222,8 +221,8 @@ pub async fn fetch_forecast_with_rate_limit(
             }
             Ok(Err(e)) => {
                 metrics.failed_tasks += 1;
+                warn!("Day {} failed: {}", day_index, &e);
                 failed_days.push((day_index, e));
-                warn!("Day {} failed: {}", day_index, e);
             }
             Err(e) => {
                 metrics.failed_tasks += 1;
@@ -254,6 +253,7 @@ pub async fn fetch_forecast_with_rate_limit(
         }
     }
 
+    let num_days = successful_days.len();
     let forecast = WeatherForecast {
         city: city.name.to_string(),
         province: city.province.to_string(),
@@ -264,7 +264,7 @@ pub async fn fetch_forecast_with_rate_limit(
         forecast: successful_days,
     };
 
-    info!("Rate-limited parallel forecast processing completed: {} successful days out of 7", successful_days.len());
+    info!("Rate-limited parallel forecast processing completed: {} successful days out of 7", num_days);
     Ok(forecast)
 }
 

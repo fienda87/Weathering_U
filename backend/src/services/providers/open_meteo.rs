@@ -10,7 +10,7 @@ pub struct OpenMeteoDaily {
     pub time: Vec<String>,
     pub temperature_2m_max: Vec<f32>,
     pub temperature_2m_min: Vec<f32>,
-    pub relative_humidity_2m: Vec<u32>,
+    pub relative_humidity_2m_mean: Vec<u32>,
     pub weather_code: Vec<i32>,
 }
 
@@ -30,7 +30,7 @@ pub async fn fetch_open_meteo(
         .build()?;
 
     let url = format!(
-        "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&daily=temperature_2m_max,temperature_2m_min,relative_humidity_2m,weather_code&timezone=Asia/Jakarta",
+        "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&daily=temperature_2m_max,temperature_2m_min,relative_humidity_2m_mean,weather_code&timezone=Asia/Jakarta",
         lat, lon
     );
 
@@ -55,7 +55,7 @@ fn normalize_open_meteo(data: &OpenMeteoResponse) -> Result<Vec<DailyForecast>, 
         let temp_max = daily.temperature_2m_max[i];
         let temp_min = daily.temperature_2m_min[i];
         let temp_avg = (temp_max + temp_min) / 2.0;
-        let humidity = daily.relative_humidity_2m[i];
+        let humidity = daily.relative_humidity_2m_mean[i];
         let weather_code = daily.weather_code[i];
 
         let (condition, icon) = map_wmo_code(weather_code);
