@@ -2,7 +2,7 @@ use rocket::fairing::AdHoc;
 use rocket_cors::{CorsOptions, AllowedOrigins};
 use log::info;
 use std::sync::Arc;
-use tokio::sync::Notify;
+use tokio::sync::{Notify, Semaphore};
 
 mod routes;
 mod services;
@@ -34,6 +34,10 @@ async fn main() {
     // Create worker pool for parallel forecast processing
     let worker_count = get_worker_count();
     let worker_pool = Arc::new(WorkerPool::new(worker_count));
+
+    // Create semaphore for rate limiting (max 3 concurrent API calls)
+    let semaphore = Arc::new(Semaphore::new(3));
+    info!("Created rate limiting semaphore with 3 permits");
 
     // Create weather service
     let weather_service = WeatherService::new(
@@ -104,6 +108,7 @@ async fn main() {
     let rocket_instance = rocket::custom(figment)
         .manage(weather_service)
         .manage(worker_pool)
+        .manage(semaphore)
         .attach(cors)
         .attach(AdHoc::on_request("Request Logger", |req, _| {
             Box::pin(async move {

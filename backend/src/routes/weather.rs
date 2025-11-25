@@ -5,6 +5,8 @@ use crate::services::WeatherService;
 use crate::cities::CITIES;
 use crate::errors::{ApiError, ErrorResponse};
 use serde::{Serialize, Deserialize};
+use std::sync::Arc;
+use tokio::sync::Semaphore;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CitiesResponse {
@@ -66,6 +68,7 @@ fn validate_city_input(city: &str) -> Result<String, ApiError> {
 pub async fn get_weather(
     city: Option<String>,
     weather_service: &State<WeatherService>,
+    semaphore: &State<Arc<Semaphore>>,
 ) -> Result<Json<WeatherForecast>, (Status, Json<ErrorResponse>)> {
     let city_name = match city {
         Some(c) => {
@@ -93,16 +96,65 @@ pub async fn get_weather(
         }
     };
 
-    info!("GET /api/weather?city={} - Looking up forecast", city_name);
+    info!("GET /api/weather?city={} - Looking up forecast (using parallel processing)", city_name);
 
-    match weather_service.get_forecast(&city_name, city_data.latitude, city_data.longitude).await {
+    // Use rate-limited parallel processing for better performance
+    match weather_service.get_forecast_rate_limited(city_data, semaphore.inner().clone()).await {
         Ok(mut forecast) => {
             forecast.province = city_data.province.to_string();
-            info!("Successfully retrieved weather forecast for {}", city_name);
+            info!("Successfully retrieved parallel weather forecast for {}", city_name);
             Ok(Json(forecast))
         }
         Err(e) => {
-            error!("Weather service error for city {}: {}", city_name, e);
+            error!("Parallel weather service error for city {}: {}", city_name, e);
+            let err = ApiError::WeatherProviderError(e);
+            Err(err.to_response())
+        }
+    }
+}
+
+#[get("/api/weather/parallel?<city>")]
+pub async fn get_weather_parallel(
+    city: Option<String>,
+    weather_service: &State<WeatherService>,
+) -> Result<Json<WeatherForecast>, (Status, Json<ErrorResponse>)> {
+    let city_name = match city {
+        Some(c) => {
+            match validate_city_input(&c) {
+                Ok(valid) => valid,
+                Err(e) => {
+                    warn!("Invalid city input: {}", e);
+                    return Err(e.to_response());
+                }
+            }
+        }
+        None => {
+            let err = ApiError::InvalidInput("Missing required query parameter: city".to_string());
+            warn!("Missing city parameter");
+            return Err(err.to_response());
+        }
+    };
+
+    let city_data = match find_city(&city_name) {
+        Some(c) => c,
+        None => {
+            let err = ApiError::CityNotFound(city_name.clone());
+            warn!("City not found: {}", city_name);
+            return Err(err.to_response());
+        }
+    };
+
+    info!("GET /api/weather/parallel?city={} - Looking up forecast (using unlimited parallel processing)", city_name);
+
+    // Use unlimited parallel processing for testing
+    match weather_service.get_forecast_parallel(city_data).await {
+        Ok(mut forecast) => {
+            forecast.province = city_data.province.to_string();
+            info!("Successfully retrieved unlimited parallel weather forecast for {}", city_name);
+            Ok(Json(forecast))
+        }
+        Err(e) => {
+            error!("Unlimited parallel weather service error for city {}: {}", city_name, e);
             let err = ApiError::WeatherProviderError(e);
             Err(err.to_response())
         }
