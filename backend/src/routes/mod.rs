@@ -1,13 +1,17 @@
 use rocket::{get, routes};
 use rocket::serde::json::Json;
 use serde_json::Value;
+use log::info;
 
 pub mod weather;
+pub mod health;
 
-use weather::get_weather;
+use weather::{get_cities, get_weather};
+use health::health;
 
 #[get("/")]
 pub fn index() -> Json<Value> {
+    info!("GET / - Index");
     Json(serde_json::json!({
         "message": "IndoPrint API Server",
         "status": "running",
@@ -15,14 +19,6 @@ pub fn index() -> Json<Value> {
     }))
 }
 
-#[get("/health")]
-pub fn health() -> Json<Value> {
-    Json(serde_json::json!({
-        "status": "healthy",
-        "timestamp": chrono::Utc::now().to_rfc3339()
-    }))
-}
-
 pub fn routes() -> Vec<rocket::Route> {
-    routes![index, health, get_weather]
+    routes![index, health, get_cities, get_weather]
 }
