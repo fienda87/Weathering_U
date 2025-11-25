@@ -9,6 +9,7 @@ mod routes;
 mod services;
 mod models;
 mod utils;
+mod cities;
 
 use utils::{Config, init_logger};
 use routes::routes;

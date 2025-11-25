@@ -1,5 +1,13 @@
 use serde::{Deserialize, Serialize};
 
+pub mod city;
+pub mod forecast;
+
+#[allow(unused_imports)]
+pub use city::City;
+#[allow(unused_imports)]
+pub use forecast::{DailyForecast, WeatherForecast};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiResponse<T> {
     pub success: bool,

@@ -1,5 +1,7 @@
 use std::env;
 
+pub mod city_search;
+
 pub struct Config {
     pub server_port: u16,
     pub api_base_url: String,
