@@ -8,6 +8,7 @@ pub use city::City;
 #[allow(unused_imports)]
 pub use forecast::{DailyForecast, WeatherForecast};
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiResponse<T> {
     pub success: bool,
@@ -16,6 +17,7 @@ pub struct ApiResponse<T> {
     pub error: Option<String>,
 }
 
+#[allow(dead_code)]
 impl<T> ApiResponse<T> {
     pub fn success(data: T) -> Self {
         Self {
@@ -36,6 +38,7 @@ impl<T> ApiResponse<T> {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContactForm {
     pub name: String,
@@ -44,6 +47,7 @@ pub struct ContactForm {
     pub message: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServiceInfo {
     pub id: String,

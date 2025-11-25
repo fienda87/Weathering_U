@@ -7,11 +7,13 @@ pub mod weather_service;
 
 pub use weather_service::WeatherService;
 
+#[allow(dead_code)]
 pub struct ApiService {
     client: Client,
     base_url: String,
 }
 
+#[allow(dead_code)]
 impl ApiService {
     pub fn new(base_url: String) -> Self {
         let client = Client::builder()
