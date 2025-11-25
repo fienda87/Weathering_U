@@ -26,6 +26,7 @@ pub enum ApiError {
     CityNotFound(String),
     InvalidInput(String),
     WeatherProviderError(String),
+    #[allow(dead_code)]
     Timeout,
 }
 

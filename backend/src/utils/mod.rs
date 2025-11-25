@@ -4,7 +4,9 @@ pub mod city_search;
 
 pub struct Config {
     pub server_port: u16,
+    #[allow(dead_code)]
     pub api_base_url: String,
+    #[allow(dead_code)]
     pub api_key: Option<String>,
     pub cors_origins: Vec<String>,
     pub openweather_key: String,

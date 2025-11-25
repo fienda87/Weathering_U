@@ -1,6 +1,7 @@
 use crate::models::City;
 use crate::cities::CITIES;
 
+#[allow(dead_code)]
 pub fn find_city_by_name(name: &str) -> Option<&'static City> {
     let search_term = name.to_lowercase();
     

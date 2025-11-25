@@ -1,9 +1,8 @@
-#[macro_use]
-extern crate rocket;
-
 use rocket::fairing::AdHoc;
 use rocket_cors::{CorsOptions, AllowedOrigins};
 use log::info;
+use std::sync::Arc;
+use tokio::sync::Notify;
 
 mod routes;
 mod services;
@@ -11,27 +10,72 @@ mod models;
 mod utils;
 mod cities;
 mod errors;
+mod runtime;
 
 use utils::{Config, init_logger};
 use routes::routes;
 use services::WeatherService;
+use runtime::{init_runtime, log_runtime_config, WorkerPool, get_worker_count};
 
-#[launch]
-async fn rocket() -> _ {
+#[tokio::main(flavor = "multi_thread", worker_threads = 3)]
+async fn main() {
+    // Initialize logger first
+    init_logger();
+
+    // Initialize runtime configuration
+    init_runtime();
+    log_runtime_config();
+
     // Initialize configuration
     let config = Config::from_env();
-    
-    // Initialize logger
-    init_logger();
-    
+
     info!("Starting IndoPrint API server on port {}", config.server_port);
-    
+
+    // Create worker pool for parallel forecast processing
+    let worker_count = get_worker_count();
+    let worker_pool = Arc::new(WorkerPool::new(worker_count));
+
     // Create weather service
     let weather_service = WeatherService::new(
         config.openweather_key.clone(),
         config.weatherapi_key.clone(),
     );
-    
+
+    // Setup shutdown notification
+    let shutdown = Arc::new(Notify::new());
+    let shutdown_clone = shutdown.clone();
+
+    // Spawn signal handler for graceful shutdown
+    tokio::spawn(async move {
+        let ctrl_c = async {
+            tokio::signal::ctrl_c()
+                .await
+                .expect("Failed to install CTRL-C signal handler");
+        };
+
+        #[cfg(unix)]
+        let terminate = async {
+            use tokio::signal::unix::{signal, SignalKind};
+            signal(SignalKind::terminate())
+                .expect("Failed to install SIGTERM signal handler")
+                .recv()
+                .await;
+        };
+
+        #[cfg(not(unix))]
+        let terminate = std::future::pending::<()>();
+
+        tokio::select! {
+            () = ctrl_c => {
+                info!("Received CTRL-C signal, initiating graceful shutdown...");
+            }
+            () = terminate => {
+                info!("Received SIGTERM signal, initiating graceful shutdown...");
+            }
+        }
+        shutdown_clone.notify_one();
+    });
+
     // Configure CORS
     let allowed_origins = AllowedOrigins::some_exact(&config.cors_origins);
     let cors = CorsOptions {
@@ -42,7 +86,10 @@ async fn rocket() -> _ {
             rocket::http::Method::Put,
             rocket::http::Method::Delete,
             rocket::http::Method::Options,
-        ].into_iter().map(From::from).collect(),
+        ]
+        .into_iter()
+        .map(From::from)
+        .collect(),
         allow_credentials: true,
         ..Default::default()
     }
@@ -54,8 +101,9 @@ async fn rocket() -> _ {
         .merge(("port", config.server_port))
         .merge(("address", "0.0.0.0"));
 
-    rocket::custom(figment)
+    let rocket_instance = rocket::custom(figment)
         .manage(weather_service)
+        .manage(worker_pool)
         .attach(cors)
         .attach(AdHoc::on_request("Request Logger", |req, _| {
             Box::pin(async move {
@@ -67,5 +115,20 @@ async fn rocket() -> _ {
                 info!("Response status: {}", res.status());
             })
         }))
-        .mount("/", routes())
+        .mount("/", routes());
+
+    // Launch rocket and wait for shutdown signal
+    let launch_task = tokio::spawn(async move {
+        let _ = rocket_instance.launch().await;
+    });
+
+    // Wait for shutdown signal
+    shutdown.notified().await;
+
+    info!("Shutdown signal received, waiting for pending tasks to complete...");
+
+    // Cancel the launch task
+    launch_task.abort();
+
+    info!("Server shutdown complete");
 }

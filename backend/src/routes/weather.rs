@@ -5,7 +5,6 @@ use crate::services::WeatherService;
 use crate::cities::CITIES;
 use crate::errors::{ApiError, ErrorResponse};
 use serde::{Serialize, Deserialize};
-use chrono::Utc;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CitiesResponse {

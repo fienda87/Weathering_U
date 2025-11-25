@@ -98,8 +98,11 @@ fn normalize_openweather(data: &OpenWeatherResponse) -> Result<Vec<DailyForecast
 
             current_max_temp = f32::MIN;
             current_min_temp = f32::MAX;
-            current_humidity = 0;
-            current_wind_speed = 0.0;
+            #[allow(unused_assignments)]
+            {
+                current_humidity = 0;
+                current_wind_speed = 0.0;
+            }
         }
 
         current_date = date;
@@ -138,18 +141,20 @@ fn normalize_openweather(data: &OpenWeatherResponse) -> Result<Vec<DailyForecast
             let mut new_day = last_day.clone();
             // Calculate new date by adding days
             let days_to_add = (daily_forecasts.len() as i64) - 4;
-            let base_timestamp = if let Ok(dt) = DateTime::<Utc>::parse_from_rfc3339(&last_day.date) {
-                dt.timestamp()
-            } else {
-                chrono::Utc::now().timestamp()
+            
+            // Parse the date string (format: YYYY-MM-DD)
+            let base_date = match chrono::NaiveDate::parse_from_str(&last_day.date, "%Y-%m-%d") {
+                Ok(d) => d,
+                Err(_) => chrono::Local::now().date_naive(),
             };
-            let dt = DateTime::<Utc>::from_timestamp(
-                base_timestamp + (days_to_add * 86400),
-                0,
-            )
-            .ok_or("Failed to create timestamp")?;
-            new_day.date = dt.format("%Y-%m-%d").to_string();
-            daily_forecasts.push(new_day);
+            
+            // Add days to the base date
+            if let Some(new_date) = base_date.checked_add_signed(chrono::Duration::days(days_to_add)) {
+                new_day.date = new_date.format("%Y-%m-%d").to_string();
+                daily_forecasts.push(new_day);
+            } else {
+                break;
+            }
         } else {
             break;
         }
