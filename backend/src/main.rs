@@ -10,6 +10,7 @@ mod services;
 mod models;
 mod utils;
 mod cities;
+mod errors;
 
 use utils::{Config, init_logger};
 use routes::routes;

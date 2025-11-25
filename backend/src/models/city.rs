@@ -1,3 +1,6 @@
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct City {
     pub id: u32,
     pub name: &'static str,
