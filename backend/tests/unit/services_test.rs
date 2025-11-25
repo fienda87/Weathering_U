@@ -12,7 +12,7 @@ fn create_mock_open_meteo_response() -> OpenMeteoResponse {
             ],
             temperature_2m_max: vec![32.5, 30.0, 31.5],
             temperature_2m_min: vec![24.0, 23.0, 23.5],
-            relative_humidity_2m: vec![65, 85, 70],
+            relative_humidity_2m_mean: vec![65, 85, 70],
             weather_code: vec![0, 61, 95],
         },
     }
@@ -250,7 +250,7 @@ fn test_open_meteo_response_deserialization() {
     assert_eq!(response.daily.time.len(), 2);
     assert_eq!(response.daily.temperature_2m_max.len(), 2);
     assert_eq!(response.daily.temperature_2m_min.len(), 2);
-    assert_eq!(response.daily.relative_humidity_2m.len(), 2);
+    assert_eq!(response.daily.relative_humidity_2m_mean.len(), 2);
     assert_eq!(response.daily.weather_code.len(), 2);
 }
 
