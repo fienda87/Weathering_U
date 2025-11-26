@@ -1,6 +1,6 @@
 use crate::models::{City, EnsembleForecast, ForecastPeriodRequest, DayEnsemble, FinalForecast};
 use crate::services::cache::ForecastCache;
-use crate::services::ensemble::{fetch_ensemble_week, calculate_final_forecast};
+use crate::services::ensemble_fetcher::{fetch_ensemble_week, calculate_final_forecast};
 use crate::services::confidence_calculator::calculate_confidence;
 use crate::utils::date_utils::{get_forecast_dates, ForecastPeriod};
 use std::sync::Arc;
@@ -74,7 +74,7 @@ impl EnsembleOrchestrator {
         );
 
         for (idx, per_source) in per_source_days.iter().enumerate() {
-            let date = dates.get(idx)
+            let date: String = dates.get(idx)
                 .ok_or_else(|| format!("Missing date for day {}", idx))?
                 .clone();
 

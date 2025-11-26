@@ -9,3 +9,5 @@ pub mod ensemble_confidence_test;
 pub mod date_utils_test;
 pub mod forecast_request_test;
 pub mod ensemble_nextweek_test;
+pub mod error_handling_test;
+pub mod city_service_test;

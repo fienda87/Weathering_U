@@ -151,41 +151,29 @@ pub async fn fetch_ensemble_week(
 ) -> Result<Vec<PerSourceData>, String> {
     info!("[Ensemble] Fetching 7-day ensemble for {}", city.name);
     
-    let mut handles = Vec::new();
+    let mut futures = Vec::new();
     
-    // Spawn parallel tasks for each day
+    // Create futures for each day
     for day in 0..7 {
-        let city_clone = city.clone();
-        let openweather_key = openweather_key.to_string();
-        let weatherapi_key = weatherapi_key.to_string();
-        
-        let handle = tokio::spawn(async move {
-            fetch_ensemble_day(day, &city_clone, &openweather_key, &weatherapi_key).await
-        });
-        
-        handles.push(handle);
+        let future = fetch_ensemble_day(day, city, openweather_key, weatherapi_key);
+        futures.push(future);
     }
     
-    // Wait for all tasks to complete
-    let results = join_all(handles).await;
+    // Wait for all futures to complete in parallel
+    let results = join_all(futures).await;
     
     let mut per_source_days = Vec::new();
     let mut failed_count = 0;
     
     for (day_idx, result) in results.into_iter().enumerate() {
         match result {
-            Ok(Ok(per_source)) => {
+            Ok(per_source) => {
                 per_source_days.push(per_source);
             }
-            Ok(Err(e)) => {
+            Err(e) => {
                 warn!("[Ensemble] Day {} failed: {}", day_idx, e);
                 failed_count += 1;
                 // Add empty per-source for failed days
-                per_source_days.push(PerSourceData::new());
-            }
-            Err(e) => {
-                warn!("[Ensemble] Day {} task panicked: {}", day_idx, e);
-                failed_count += 1;
                 per_source_days.push(PerSourceData::new());
             }
         }
