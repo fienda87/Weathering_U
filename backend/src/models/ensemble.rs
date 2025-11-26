@@ -35,7 +35,7 @@ pub struct DayEnsemble {
 }
 
 /// Complete 7-day ensemble forecast
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnsembleForecast {
     pub city: String,
     pub province: String,
