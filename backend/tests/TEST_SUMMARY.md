@@ -11,20 +11,31 @@ Comprehensive unit tests have been created for the backend models, services, and
 | models_test.rs | 20 tests | DailyForecast, WeatherForecast, ApiResponse |
 | services_test.rs | 30+ tests | Weather codes, normalization, calculations |
 | city_search_test.rs | 40+ tests | City search, validation, geographic bounds |
-| **TOTAL** | **90+ tests** | **Core business logic** |
+| ensemble_models_test.rs | 15 tests | Ensemble forecast structures |
+| cache_test.rs | 18 tests | Cache operations, TTL, concurrency |
+| cache_integration_test.rs | 1 test | Cache integration with forecast |
+| **TOTAL** | **124+ tests** | **Core business logic** |
 
 ## Directory Structure
 
 ```
 /backend/tests/
 ├── unit/
-│   ├── mod.rs                  # Module declarations
-│   ├── models_test.rs          # Model validation tests
-│   ├── services_test.rs        # Service logic tests
-│   └── city_search_test.rs     # City search tests
-├── integration/                # Future integration tests
-├── README.md                   # Test documentation
-└── TEST_SUMMARY.md            # This file
+│   ├── mod.rs                       # Module declarations
+│   ├── models_test.rs               # Model validation tests
+│   ├── services_test.rs             # Service logic tests
+│   ├── city_search_test.rs          # City search tests
+│   ├── cache_test.rs                # Cache operations tests
+│   ├── ensemble_models_test.rs      # Ensemble forecast tests
+│   ├── date_utils_test.rs           # Date utilities tests
+│   └── forecast_request_test.rs     # Forecast request tests
+├── integration/
+│   ├── mod.rs                       # Integration module declarations
+│   ├── cache_integration_test.rs    # Cache integration tests
+│   ├── ensemble_calc_test.rs        # Ensemble calculation tests
+│   └── date_utils_integration_test.rs # Date utils integration tests
+├── README.md                        # Test documentation
+└── TEST_SUMMARY.md                  # This file
 ```
 
 ## Test Coverage Details
@@ -95,7 +106,41 @@ Comprehensive unit tests have been created for the backend models, services, and
 - ✅ API key storage and retrieval
 - ✅ Configuration management
 
-### 3. City Search Tests (city_search_test.rs) - 40+ tests
+### 3. Cache Tests (cache_test.rs) - 18 tests
+
+#### Basic Cache Operations
+- ✅ Insert and get operations
+- ✅ Cache miss handling
+- ✅ TTL expiration (1 second TTL)
+- ✅ Clear all entries
+- ✅ Cache size tracking
+- ✅ Capacity management (FIFO eviction)
+
+#### Get-or-Fetch Pattern
+- ✅ First call fetches fresh data
+- ✅ Second call returns cached data
+- ✅ Error handling during fetch
+- ✅ Re-fetch after expiration
+
+#### Cache Entry Validation
+- ✅ Entry validity checking
+- ✅ Entry expiration detection
+- ✅ Remaining TTL calculation
+- ✅ No remaining TTL for expired entries
+
+#### Advanced Features
+- ✅ Cache statistics tracking
+- ✅ Expired entry cleanup
+- ✅ Stats with mixed expired/valid entries
+- ✅ Concurrent access (10 parallel tasks)
+- ✅ Multiple independent cache instances
+- ✅ Complex data types (structs with Vec, f64)
+
+#### Integration Tests
+- ✅ Cache integration with forecast data
+- ✅ Performance validation (< 50ms for cache hits)
+
+### 4. City Search Tests (city_search_test.rs) - 40+ tests
 
 #### Basic Search Functionality
 - ✅ Find city by exact name (Jakarta, Bandung, Surabaya, etc.)
