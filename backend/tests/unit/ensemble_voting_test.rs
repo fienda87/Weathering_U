@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use weather_app::services::ensemble::{
+    use backend::services::ensemble::{
         majority_vote_condition,
         vote_condition,
     };

@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use weather_app::services::ensemble::{
+    use backend::services::ensemble::{
         calculate_stddev,
         calculate_cv,
         calculate_confidence,

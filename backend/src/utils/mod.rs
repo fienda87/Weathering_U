@@ -1,6 +1,19 @@
 use std::env;
 
 pub mod city_search;
+pub mod date_utils;
+
+pub use date_utils::{
+    ForecastPeriod,
+    get_forecast_dates,
+    get_current_week_dates,
+    get_next_week_date,
+    get_weekday_name,
+    get_day_of_week_from_date,
+    is_today_weekday,
+    days_to_weekday,
+    get_dates_between,
+};
 
 pub struct Config {
     pub server_port: u16,
