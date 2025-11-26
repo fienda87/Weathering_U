@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use weather_app::services::ensemble::{
+    use backend::services::ensemble::{
         calculate_weighted_temperature,
         calculate_weighted_average_generic,
     };

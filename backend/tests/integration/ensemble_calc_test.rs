@@ -1,11 +1,11 @@
 #[tokio::test]
 async fn test_weighted_averaging_integration() {
-    use weather_app::services::ensemble::calculate_weighted_temperature;
+    use backend::services::ensemble::calculate_weighted_temperature;
 
     // Simulate 3 API responses
-    let om_temp = 32.0;
-    let ow_temp = 33.0;
-    let wa_temp = 31.5;
+    let om_temp: f32 = 32.0;
+    let ow_temp: f32 = 33.0;
+    let wa_temp: f32 = 31.5;
 
     let avg = calculate_weighted_temperature(
         Some(om_temp),
@@ -23,7 +23,7 @@ async fn test_weighted_averaging_integration() {
 
 #[tokio::test]
 async fn test_voting_integration() {
-    use weather_app::services::ensemble::majority_vote_condition;
+    use backend::services::ensemble::majority_vote_condition;
 
     // Simulate voting from 3 providers
     let conditions = vec![
@@ -41,7 +41,7 @@ async fn test_voting_integration() {
 
 #[tokio::test]
 async fn test_confidence_workflow() {
-    use weather_app::services::ensemble::{
+    use backend::services::ensemble::{
         get_confidence_details,
         calculate_confidence,
     };
