@@ -15,6 +15,7 @@ pub use date_utils::{
     get_dates_between,
 };
 
+#[derive(Clone)]
 pub struct Config {
     pub server_port: u16,
     #[allow(dead_code)]

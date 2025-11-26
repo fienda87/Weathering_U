@@ -1,7 +1,8 @@
 use rocket::{get, State, serde::json::Json, http::Status};
 use log::{info, warn, error};
 use crate::models::{WeatherForecast, City, EnsembleForecast, ForecastPeriodRequest};
-use crate::services::WeatherService;
+use crate::services::{WeatherService, ForecastCache, EnsembleOrchestrator};
+use crate::utils::Config;
 use crate::cities::CITIES;
 use crate::errors::{ApiError, ErrorResponse};
 use serde::{Serialize, Deserialize};
@@ -166,7 +167,10 @@ pub async fn get_ensemble_forecast(
     city: Option<String>,
     period: Option<String>,
     day: Option<u32>,
+    cache: &State<Arc<ForecastCache<EnsembleForecast>>>,
+    config: &State<Config>,
 ) -> Result<Json<EnsembleForecast>, (Status, Json<ErrorResponse>)> {
+    // Validate city input
     let city_name = match city {
         Some(c) => {
             match validate_city_input(&c) {
@@ -184,6 +188,7 @@ pub async fn get_ensemble_forecast(
         }
     };
 
+    // Validate city exists
     let city_data = match find_city(&city_name) {
         Some(c) => c,
         None => {
@@ -193,6 +198,7 @@ pub async fn get_ensemble_forecast(
         }
     };
 
+    // Parse forecast period
     let forecast_period = match ForecastPeriodRequest::from_query(period, day) {
         Ok(p) => p,
         Err(e) => {
@@ -208,65 +214,27 @@ pub async fn get_ensemble_forecast(
         forecast_period
     );
 
-    // For now, return mock data
-    let mut ensemble = EnsembleForecast::new(
-        city_data.name.to_string(),
-        city_data.province.to_string(),
-        "Indonesia".to_string(),
-        city_data.latitude,
-        city_data.longitude,
+    // Create orchestrator with cache and API keys
+    let orchestrator = EnsembleOrchestrator::new(
+        cache.inner().clone(),
+        config.openweather_key.clone(),
+        config.weatherapi_key.clone(),
     );
 
-    // Create mock 7-day forecast
-    use crate::models::{DayEnsemble, PerSourceData, ProviderForecast, FinalForecast};
-    use chrono::{Local, Duration};
-
-    let start_date = Local::now().date_naive();
-    
-    for i in 0..7 {
-        let date = start_date + Duration::days(i);
-        let date_str = date.format("%Y-%m-%d").to_string();
-        
-        // Mock per-source data
-        let per_source = PerSourceData::new()
-            .with_open_meteo(ProviderForecast::new(
-                date_str.clone(),
-                28.0 + i as f32,
-                22.0 + i as f32 * 0.5,
-                "Partly Cloudy".to_string(),
-            ))
-            .with_open_weather(ProviderForecast::new(
-                date_str.clone(),
-                27.5 + i as f32,
-                21.5 + i as f32 * 0.5,
-                "Cloudy".to_string(),
-            ))
-            .with_weather_api(ProviderForecast::new(
-                date_str.clone(),
-                28.5 + i as f32,
-                22.5 + i as f32 * 0.5,
-                "Sunny".to_string(),
-            ));
-
-        // Mock final forecast
-        let confidence = if i < 2 {
-            "high"
-        } else if i < 5 {
-            "medium"
-        } else {
-            "low"
-        };
-
-        let final_forecast = FinalForecast::new(
-            28.0 + i as f32,
-            22.0 + i as f32 * 0.5,
-            "Partly Cloudy".to_string(),
-            confidence.to_string(),
-        );
-
-        ensemble.add_day(DayEnsemble::new(date_str, per_source, final_forecast));
+    // Fetch real forecast data
+    match orchestrator.get_forecast(city_data, forecast_period).await {
+        Ok(ensemble) => {
+            info!(
+                "Successfully fetched ensemble forecast for {} with {} days",
+                city_name,
+                ensemble.days.len()
+            );
+            Ok(Json(ensemble))
+        }
+        Err(e) => {
+            error!("Failed to fetch ensemble forecast for {}: {}", city_name, e);
+            let err = ApiError::WeatherProviderError(e);
+            Err(err.to_response())
+        }
     }
-
-    info!("Successfully generated mock ensemble forecast for {}", city_name);
-    Ok(Json(ensemble))
 }
