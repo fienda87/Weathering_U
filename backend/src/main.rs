@@ -14,7 +14,8 @@ mod runtime;
 
 use utils::{Config, init_logger};
 use routes::routes;
-use services::WeatherService;
+use services::{WeatherService, ForecastCache};
+use models::EnsembleForecast;
 use runtime::{init_runtime, log_runtime_config, WorkerPool, get_worker_count};
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 3)]
@@ -44,6 +45,10 @@ async fn main() {
         config.openweather_key.clone(),
         config.weatherapi_key.clone(),
     );
+
+    // Create ensemble forecast cache (1 hour TTL, 100 entries max)
+    let ensemble_cache = Arc::new(ForecastCache::<EnsembleForecast>::new(3600, 100));
+    info!("Created ensemble forecast cache with 1 hour TTL");
 
     // Setup shutdown notification
     let shutdown = Arc::new(Notify::new());
@@ -109,6 +114,8 @@ async fn main() {
         .manage(weather_service)
         .manage(worker_pool)
         .manage(semaphore)
+        .manage(ensemble_cache)
+        .manage(config.clone())
         .attach(cors)
         .attach(AdHoc::on_request("Request Logger", |req, _| {
             Box::pin(async move {
