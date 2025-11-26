@@ -6,6 +6,7 @@ pub mod providers;
 pub mod weather_service;
 pub mod daily_processor;
 pub mod parallel_forecast;
+pub mod ensemble;
 
 pub use weather_service::WeatherService;
 pub use parallel_forecast::{fetch_forecast_parallel, fetch_forecast_with_rate_limit, TaskMetrics};
