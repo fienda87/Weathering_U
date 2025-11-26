@@ -38,3 +38,26 @@ async fn test_voting_integration() {
     assert!(agreement > 0.0 && agreement <= 1.0);
     println!("Voting winner: {} with {:.1}% agreement", winner, agreement * 100.0);
 }
+
+#[tokio::test]
+async fn test_confidence_workflow() {
+    use weather_app::services::ensemble::{
+        get_confidence_details,
+        calculate_confidence,
+    };
+
+    let max_temps = vec![32.0, 33.0, 31.5];
+    let min_temps = vec![25.0, 25.5, 24.9];
+
+    let details = get_confidence_details(
+        max_temps,
+        min_temps,
+        0.9,
+    );
+
+    assert!(!details.tier.is_empty());
+    assert!(details.score >= 0.0 && details.score <= 1.0);
+    assert!(details.condition_agreement >= 0.0 && details.condition_agreement <= 1.0);
+    
+    println!("Confidence Details: {:?}", details);
+}
