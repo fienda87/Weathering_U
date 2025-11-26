@@ -98,7 +98,8 @@ export default {
     const selectedDayIndex = ref(null)
 
     const cityName = computed(() => {
-      return normalizeCityParam(route.query.city)
+      const city = normalizeCityParam(route.query.city)
+      return city ? city.trim() : ''
     })
 
     const selectedDayData = computed(() => {
@@ -131,9 +132,38 @@ export default {
       }
     }
 
-    const fetchEnsembleForecast = async (city) => {
+    const validateCity = (city) => {
       if (!city) {
-        error.value = 'No city specified. Please go back and select a city.'
+        error.value = 'No city specified. Please select a city from home page.'
+        console.warn('[Weather] No city specified')
+        return false
+      }
+
+      if (city.length < 2) {
+        error.value = 'City name too short. Please enter a valid city.'
+        console.warn('[Weather] City name too short:', city)
+        return false
+      }
+
+      if (city.length > 50) {
+        error.value = 'City name too long.'
+        console.warn('[Weather] City name too long:', city)
+        return false
+      }
+
+      // Basic check for invalid characters
+      if (!/^[a-zA-Z\s'-]+$/.test(city)) {
+        error.value = 'City name contains invalid characters.'
+        console.warn('[Weather] Invalid characters in city:', city)
+        return false
+      }
+
+      return true
+    }
+
+    const fetchEnsembleForecast = async (city) => {
+      // Validate before API call
+      if (!validateCity(city)) {
         loading.value = false
         return
       }
@@ -153,36 +183,56 @@ export default {
         const response = await fetch(url)
         
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}))
-          const errorMessage = errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`
-          
-          console.error(`[Weather] API error:`, {
-            status: response.status,
-            statusText: response.statusText,
-            errorData
-          })
-          
-          throw new Error(errorMessage)
+          const data = await response.json().catch(() => ({}))
+
+          if (response.status === 404) {
+            error.value = `City "${city}" not found. Please go back and select a different city.`
+            console.error('[Weather] City not found:', city)
+          } else if (response.status === 400) {
+            error.value = `Invalid city format: ${data.error || 'Please check the city name'}`
+            console.error('[Weather] Invalid city format:', data)
+          } else if (response.status === 500) {
+            error.value = 'Server error while fetching forecast. Please try again later.'
+            console.error('[Weather] Server error:', data)
+          } else {
+            error.value = data.error || 'Failed to fetch ensemble forecast'
+            console.error('[Weather] API error:', response.status, data)
+          }
+          return
         }
         
         const data = await response.json()
         
-        if (!data || !data.days || data.days.length === 0) {
-          console.warn('[Weather] Received empty ensemble forecast data:', data)
-          throw new Error('No ensemble forecast data available for this city.')
+        // Validate response structure
+        if (!data || !data.days || !Array.isArray(data.days) || data.days.length === 0) {
+          error.value = 'No forecast data available for this city'
+          console.warn('[Weather] Invalid or empty forecast data:', data)
+          return
         }
         
-        console.log(`[Weather] Successfully fetched ensemble forecast with ${data.days.length} days for ${data.city}`)
         ensembleForecast.value = data
+        console.log('[Weather] Successfully loaded ensemble forecast for', city, `with ${data.days.length} days`)
+
       } catch (err) {
-        console.error('[Weather] Error fetching ensemble forecast:', err)
-        error.value = err.message || 'Failed to fetch ensemble forecast. Please try again.'
+        if (err instanceof TypeError) {
+          error.value = 'Network error. Please check your connection and try again.'
+          console.error('[Weather] Network error:', err)
+        } else {
+          error.value = 'An unexpected error occurred while fetching forecast'
+          console.error('[Weather] Unexpected error:', err)
+        }
       } finally {
         loading.value = false
       }
     }
 
     const handleNextWeekClick = (payload) => {
+      if (!ensembleForecast.value?.days[payload.dayIndex]) {
+        console.error('[Weather] Invalid day index:', payload.dayIndex)
+        error.value = 'Invalid day selection'
+        return
+      }
+
       console.log('[Weather] Next week click event received:', payload)
       selectedDay.value = payload
       selectedDayIndex.value = payload.dayIndex
@@ -201,41 +251,27 @@ export default {
     }
 
     const retryFetch = () => {
-      const city = cityName.value
-      if (city) {
-        console.log('[Weather] Retrying fetch for city:', city)
-        fetchEnsembleForecast(city)
-      } else {
-        error.value = 'No city specified. Please go back and select a city.'
+      if (cityName.value) {
+        fetchEnsembleForecast(cityName.value)
       }
     }
 
     onMounted(() => {
-      const city = cityName.value
-      if (city) {
-        fetchEnsembleForecast(city)
+      if (cityName.value) {
+        fetchEnsembleForecast(cityName.value)
       } else {
-        console.error('[Weather] No city specified in query parameters')
-        error.value = 'No city specified. Please go back and select a city.'
+        error.value = 'No city specified. Please go back to home page and select a city.'
+        console.warn('[Weather] mounted: No city in route query')
         loading.value = false
       }
     })
 
     watch(
       () => route.query.city,
-      (newCity, oldCity) => {
-        const nextCity = normalizeCityParam(newCity)
-        const prevCity = normalizeCityParam(oldCity)
-
-        if (!nextCity) {
-          ensembleForecast.value = null
-          error.value = 'No city specified. Please go back and select a city.'
-          return
-        }
-
-        if (nextCity !== prevCity) {
-          console.log('[Weather] City query changed, fetching new ensemble forecast:', nextCity)
-          fetchEnsembleForecast(nextCity)
+      (newCity) => {
+        if (newCity) {
+          console.log('[Weather] City query changed to:', newCity)
+          fetchEnsembleForecast(newCity)
         }
       }
     )

@@ -267,6 +267,7 @@
 
 <script>
 import { ref, watch } from 'vue'
+import { ApiErrorResponse } from '../utils/api-errors'
 
 export default {
   name: 'NextWeekModal',
@@ -340,30 +341,48 @@ export default {
         const response = await fetch(url)
 
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}))
-          const errorMessage = errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`
+          const data = await response.json().catch(() => ({}))
           
-          console.error(`[NextWeekModal] API error:`, {
-            status: response.status,
-            statusText: response.statusText,
-            errorData
-          })
-          
-          throw new Error(errorMessage)
+          if (response.status === 404) {
+            error.value = `City "${props.city}" not found. Please select a valid city.`
+            console.warn('[NextWeekModal] City not found:', props.city)
+          } else if (response.status === 400) {
+            error.value = `Invalid request: ${data.error || 'Please check your inputs'}`
+            console.warn('[NextWeekModal] Invalid parameters:', data)
+          } else if (response.status === 500) {
+            error.value = 'Server error. Please try again later.'
+            console.error('[NextWeekModal] Server error:', data)
+          } else {
+            error.value = data.error || 'Failed to fetch next week forecast'
+            console.error('[NextWeekModal] API error:', response.status, data)
+          }
+          return
         }
 
         const data = await response.json()
         
+        // Validate response has forecast data
         if (!data || !data.days || data.days.length === 0) {
-          console.warn('[NextWeekModal] Received empty forecast data:', data)
-          throw new Error('No next week forecast data available.')
+          error.value = 'No forecast data available'
+          console.warn('[NextWeekModal] Empty forecast data received')
+          return
         }
 
-        console.log(`[NextWeekModal] Successfully fetched next week forecast with ${data.days.length} day(s)`)
         nextWeekData.value = data.days[0]
+        console.log('[NextWeekModal] Successfully fetched D+7 forecast for', props.city, `with ${data.days.length} days`)
+
       } catch (err) {
-        console.error('[NextWeekModal] Error fetching next week forecast:', err)
-        error.value = err.message || 'Failed to fetch next week forecast. Please try again.'
+        if (err instanceof ApiErrorResponse) {
+          error.value = err.message
+          console.error('[NextWeekModal] API Error:', err.status, err.message)
+        } else if (err instanceof TypeError) {
+          // Network error
+          error.value = 'Network error. Please check your connection.'
+          console.error('[NextWeekModal] Network error:', err)
+        } else {
+          error.value = 'An unexpected error occurred'
+          console.error('[NextWeekModal] Unexpected error:', err)
+        }
       } finally {
         loading.value = false
       }
