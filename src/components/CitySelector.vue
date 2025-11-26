@@ -123,16 +123,40 @@ export default {
       if (cities.value.length > 0) return // Already loaded
       
       loading.value = true
+      
       try {
         const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/api/cities`)
+        
         if (!response.ok) {
-          throw new Error(`Failed to fetch cities: ${response.status}`)
+          const data = await response.json().catch(() => ({}))
+          
+          if (response.status === 400) {
+            console.warn('[CitySelector] Invalid request:', data)
+          } else if (response.status === 500) {
+            console.error('[CitySelector] Server error:', data)
+          } else {
+            console.error('[CitySelector] API error:', response.status, data)
+          }
+          cities.value = []
+          return
         }
+        
         const data = await response.json()
+        
+        if (!Array.isArray(data.cities)) {
+          console.warn('[CitySelector] Unexpected response format:', data)
+          cities.value = []
+          return
+        }
+        
         cities.value = data.cities
-      } catch (error) {
-        console.error('Error fetching cities:', error)
-        // For development, you might want to use mock data
+        console.log('[CitySelector] Successfully loaded', data.cities.length, 'cities')
+      } catch (err) {
+        if (err instanceof TypeError) {
+          console.error('[CitySelector] Network error - please check your connection:', err)
+        } else {
+          console.error('[CitySelector] Unexpected error:', err)
+        }
         cities.value = []
       } finally {
         loading.value = false
