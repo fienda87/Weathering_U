@@ -20,6 +20,9 @@ use runtime::{init_runtime, log_runtime_config, WorkerPool, get_worker_count};
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 3)]
 async fn main() {
+    // Load .env file
+    dotenvy::dotenv().ok();
+
     // Initialize logger first
     init_logger();
 
