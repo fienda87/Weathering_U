@@ -42,6 +42,26 @@ impl fmt::Display for ApiError {
 }
 
 impl ApiError {
+    /// Creates a CityNotFound error for when a city is not in the database
+    pub fn city_not_found(city: &str) -> Self {
+        ApiError::CityNotFound(city.to_string())
+    }
+
+    /// Creates an InvalidInput error for invalid parameters
+    pub fn invalid_params(message: &str) -> Self {
+        ApiError::InvalidInput(message.to_string())
+    }
+
+    /// Creates a WeatherProviderError for provider API failures
+    pub fn provider_error(message: &str) -> Self {
+        ApiError::WeatherProviderError(message.to_string())
+    }
+
+    /// Creates an internal server error (maps to provider error for now)
+    pub fn internal_error(message: &str) -> Self {
+        ApiError::WeatherProviderError(format!("Internal error: {}", message))
+    }
+
     pub fn to_response(&self) -> (Status, Json<ErrorResponse>) {
         match self {
             ApiError::CityNotFound(city) => (
