@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 pub mod city;
 pub mod forecast;
 pub mod ensemble;
+pub mod forecast_request;
 
 #[allow(unused_imports)]
 pub use city::City;
@@ -11,6 +12,12 @@ pub use forecast::{DailyForecast, WeatherForecast};
 #[allow(unused_imports)]
 pub use ensemble::{
     DayEnsemble, EnsembleForecast, FinalForecast, PerSourceData, ProviderForecast,
+};
+#[allow(unused_imports)]
+pub use forecast_request::{
+    ForecastRequestParams,
+    ForecastPeriodRequest,
+    ForecastResponse,
 };
 
 #[allow(dead_code)]

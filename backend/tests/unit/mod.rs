@@ -6,3 +6,4 @@ pub mod ensemble_averaging_test;
 pub mod ensemble_voting_test;
 pub mod ensemble_confidence_test;
 pub mod date_utils_test;
+pub mod forecast_request_test;
