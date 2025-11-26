@@ -96,7 +96,7 @@ pub fn get_confidence_details(
     
     let max_stddev = calculate_stddev(max_temps);
     let min_stddev = calculate_stddev(min_temps);
-    let avg_stddev = (max_stddev + min_stddev) / 2.0;
+    let _avg_stddev = (max_stddev + min_stddev) / 2.0;
     
     let confidence_tier = calculate_confidence(
         avg_temps.clone(),

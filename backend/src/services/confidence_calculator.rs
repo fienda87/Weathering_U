@@ -7,7 +7,7 @@ use log::debug;
 /// - HIGH: All 3 providers available AND (temperature agreement within ±2°C AND condition matches)
 /// - MEDIUM: 2 providers available AND data consistent, OR 3 providers with slight variance (±3°C)
 /// - LOW: Only 1 provider available, OR providers disagree significantly (>±3°C or different conditions)
-pub fn calculate_confidence(per_source: &PerSourceData, final_temps: (f32, f32)) -> String {
+pub fn calculate_confidence(per_source: &PerSourceData, _final_temps: (f32, f32)) -> String {
     let provider_count = per_source.provider_count();
     
     debug!("[ConfidenceCalc] Provider count: {}", provider_count);

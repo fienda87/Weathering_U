@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use crate::models::DailyForecast;
-use std::error::Error;
 use reqwest::Client;
 use std::time::Duration;
 use log::info;
@@ -41,20 +40,21 @@ pub async fn fetch_openweather(
     lat: f64,
     lon: f64,
     api_key: &str,
-) -> Result<Vec<DailyForecast>, Box<dyn Error>> {
+) -> Result<Vec<DailyForecast>, String> {
     info!("Fetching weather from OpenWeatherMap provider for lat={}, lon={}", lat, lon);
 
     let client = Client::builder()
         .timeout(Duration::from_secs(5))
-        .build()?;
+        .build()
+        .map_err(|e| e.to_string())?;
 
     let url = format!(
         "https://api.openweathermap.org/data/2.5/forecast?lat={}&lon={}&appid={}&units=metric",
         lat, lon, api_key
     );
 
-    let response = client.get(&url).send().await?;
-    let data: OpenWeatherResponse = response.json().await?;
+    let response = client.get(&url).send().await.map_err(|e| e.to_string())?;
+    let data: OpenWeatherResponse = response.json().await.map_err(|e| e.to_string())?;
 
     info!("Successfully fetched OpenWeatherMap data");
 
@@ -63,9 +63,9 @@ pub async fn fetch_openweather(
     Ok(forecasts)
 }
 
-fn normalize_openweather(data: &OpenWeatherResponse) -> Result<Vec<DailyForecast>, Box<dyn Error>> {
+fn normalize_openweather(data: &OpenWeatherResponse) -> Result<Vec<DailyForecast>, String> {
     if data.list.is_empty() {
-        return Err("No weather data available".into());
+        return Err("No weather data available".to_string());
     }
 
     let mut daily_forecasts: Vec<DailyForecast> = Vec::new();
@@ -79,7 +79,7 @@ fn normalize_openweather(data: &OpenWeatherResponse) -> Result<Vec<DailyForecast
 
     for item in &data.list {
         let dt = DateTime::<Utc>::from_timestamp(item.dt, 0)
-            .ok_or("Invalid timestamp")?;
+            .ok_or_else(|| "Invalid timestamp".to_string())?;
         let date = dt.format("%Y-%m-%d").to_string();
 
         // If we're on a new day, save the previous day's forecast

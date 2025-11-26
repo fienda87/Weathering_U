@@ -1,4 +1,4 @@
-use crate::models::{City, DailyForecast, PerSourceData, ProviderForecast};
+use crate::models::{City, PerSourceData, ProviderForecast};
 use crate::services::providers::{
     fetch_open_meteo, 
     fetch_openweather, 
@@ -111,7 +111,7 @@ pub async fn fetch_ensemble_day(
 }
 
 /// Calculate final forecast from per-source data
-pub fn calculate_final_forecast(per_source: &PerSourceData, date: String) -> Result<(f32, f32, String), String> {
+pub fn calculate_final_forecast(per_source: &PerSourceData, _date: String) -> Result<(f32, f32, String), String> {
     let (max_temps, min_temps) = per_source.extract_temperatures();
     let conditions = per_source.get_conditions();
     

@@ -1,5 +1,5 @@
 <template>
-  <div class="relative">
+  <div class="relative z-40">
     <!-- Search Input -->
     <div class="relative">
       <input
@@ -36,7 +36,7 @@
     <!-- Dropdown -->
     <div
       v-if="showDropdown && (filteredCities.length > 0 || searchQuery.length > 0)"
-      class="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+      class="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-2xl max-h-60 overflow-y-auto"
     >
       <!-- Loading State -->
       <div v-if="loading" class="px-4 py-3 text-center text-gray-500">
@@ -166,14 +166,14 @@ export default {
     // Filter cities based on search query
     const filteredCities = computed(() => {
       if (!searchQuery.value.trim()) {
-        return cities.value.slice(0, 10) // Show first 10 cities when no search
+        return cities.value // Show all cities when no search
       }
       
       const query = searchQuery.value.toLowerCase()
       return cities.value.filter(city => 
         city.name.toLowerCase().includes(query) ||
         city.province.toLowerCase().includes(query)
-      ).slice(0, 20) // Limit to 20 results
+      ) // Show all matching results
     })
 
     // Handle search input with debouncing
