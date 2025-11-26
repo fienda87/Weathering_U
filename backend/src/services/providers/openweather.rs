@@ -40,7 +40,7 @@ pub async fn fetch_openweather(
     lat: f64,
     lon: f64,
     api_key: &str,
-) -> Result<Vec<DailyForecast>, String> {
+) -> Result<Vec<DailyForecast>, Box<dyn Error + Send + Sync>> {
     info!("Fetching weather from OpenWeatherMap provider for lat={}, lon={}", lat, lon);
 
     let client = Client::builder()
@@ -63,7 +63,7 @@ pub async fn fetch_openweather(
     Ok(forecasts)
 }
 
-fn normalize_openweather(data: &OpenWeatherResponse) -> Result<Vec<DailyForecast>, String> {
+fn normalize_openweather(data: &OpenWeatherResponse) -> Result<Vec<DailyForecast>, Box<dyn Error + Send + Sync>> {
     if data.list.is_empty() {
         return Err("No weather data available".to_string());
     }

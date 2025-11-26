@@ -21,7 +21,7 @@ pub struct OpenMeteoResponse {
 pub async fn fetch_open_meteo(
     lat: f64,
     lon: f64,
-) -> Result<Vec<DailyForecast>, String> {
+) -> Result<Vec<DailyForecast>, Box<dyn Error + Send + Sync>> {
     info!("Fetching weather from Open-Meteo provider for lat={}, lon={}", lat, lon);
 
     let client = Client::builder()
@@ -44,7 +44,7 @@ pub async fn fetch_open_meteo(
     Ok(forecasts)
 }
 
-fn normalize_open_meteo(data: &OpenMeteoResponse) -> Result<Vec<DailyForecast>, String> {
+fn normalize_open_meteo(data: &OpenMeteoResponse) -> Result<Vec<DailyForecast>, Box<dyn Error + Send + Sync>> {
     let mut forecasts = Vec::new();
     let daily = &data.daily;
 

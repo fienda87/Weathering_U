@@ -38,7 +38,7 @@ pub struct WeatherAPIResponse {
 pub async fn fetch_weatherapi(
     city: &str,
     api_key: &str,
-) -> Result<Vec<DailyForecast>, String> {
+) -> Result<Vec<DailyForecast>, Box<dyn Error + Send + Sync>> {
     info!("Fetching weather from WeatherAPI provider for city={}", city);
 
     let client = Client::builder()
@@ -61,7 +61,7 @@ pub async fn fetch_weatherapi(
     Ok(forecasts)
 }
 
-fn normalize_weatherapi(data: &WeatherAPIResponse) -> Result<Vec<DailyForecast>, String> {
+fn normalize_weatherapi(data: &WeatherAPIResponse) -> Result<Vec<DailyForecast>, Box<dyn Error + Send + Sync>> {
     let mut forecasts = Vec::new();
 
     for forecast_day in &data.forecast.forecastday {
