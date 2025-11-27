@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use crate::models::DailyForecast;
+use std::error::Error;
 use reqwest::Client;
 use std::time::Duration;
 use log::info;
@@ -21,21 +22,20 @@ pub struct OpenMeteoResponse {
 pub async fn fetch_open_meteo(
     lat: f64,
     lon: f64,
-) -> Result<Vec<DailyForecast>, Box<dyn Error + Send + Sync>> {
+) -> Result<Vec<DailyForecast>, Box<dyn Error>> {
     info!("Fetching weather from Open-Meteo provider for lat={}, lon={}", lat, lon);
 
     let client = Client::builder()
         .timeout(Duration::from_secs(5))
-        .build()
-        .map_err(|e| e.to_string())?;
+        .build()?;
 
     let url = format!(
         "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&daily=temperature_2m_max,temperature_2m_min,relative_humidity_2m_mean,weather_code&timezone=Asia/Jakarta",
         lat, lon
     );
 
-    let response = client.get(&url).send().await.map_err(|e| e.to_string())?;
-    let data: OpenMeteoResponse = response.json().await.map_err(|e| e.to_string())?;
+    let response = client.get(&url).send().await?;
+    let data: OpenMeteoResponse = response.json().await?;
 
     info!("Successfully fetched Open-Meteo data");
 
@@ -44,7 +44,7 @@ pub async fn fetch_open_meteo(
     Ok(forecasts)
 }
 
-fn normalize_open_meteo(data: &OpenMeteoResponse) -> Result<Vec<DailyForecast>, Box<dyn Error + Send + Sync>> {
+fn normalize_open_meteo(data: &OpenMeteoResponse) -> Result<Vec<DailyForecast>, Box<dyn Error>> {
     let mut forecasts = Vec::new();
     let daily = &data.daily;
 

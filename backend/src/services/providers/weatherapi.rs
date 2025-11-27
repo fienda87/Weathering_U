@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use crate::models::DailyForecast;
+use std::error::Error;
 use reqwest::Client;
 use std::time::Duration;
 use log::info;
@@ -38,21 +39,20 @@ pub struct WeatherAPIResponse {
 pub async fn fetch_weatherapi(
     city: &str,
     api_key: &str,
-) -> Result<Vec<DailyForecast>, Box<dyn Error + Send + Sync>> {
+) -> Result<Vec<DailyForecast>, Box<dyn Error>> {
     info!("Fetching weather from WeatherAPI provider for city={}", city);
 
     let client = Client::builder()
         .timeout(Duration::from_secs(5))
-        .build()
-        .map_err(|e| e.to_string())?;
+        .build()?;
 
     let url = format!(
         "https://api.weatherapi.com/v1/forecast.json?key={}&q={}&days=7&aqi=no",
         api_key, city
     );
 
-    let response = client.get(&url).send().await.map_err(|e| e.to_string())?;
-    let data: WeatherAPIResponse = response.json().await.map_err(|e| e.to_string())?;
+    let response = client.get(&url).send().await?;
+    let data: WeatherAPIResponse = response.json().await?;
 
     info!("Successfully fetched WeatherAPI data");
 
@@ -61,7 +61,7 @@ pub async fn fetch_weatherapi(
     Ok(forecasts)
 }
 
-fn normalize_weatherapi(data: &WeatherAPIResponse) -> Result<Vec<DailyForecast>, Box<dyn Error + Send + Sync>> {
+fn normalize_weatherapi(data: &WeatherAPIResponse) -> Result<Vec<DailyForecast>, Box<dyn Error>> {
     let mut forecasts = Vec::new();
 
     for forecast_day in &data.forecast.forecastday {

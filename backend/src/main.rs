@@ -22,7 +22,7 @@ use runtime::{init_runtime, log_runtime_config, WorkerPool, get_worker_count};
 async fn main() {
     // Load .env file
     dotenvy::dotenv().ok();
-    
+
     // Initialize logger first
     init_logger();
 
