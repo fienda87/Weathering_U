@@ -5,7 +5,6 @@ use crate::services::confidence_calculator::calculate_confidence;
 use crate::utils::date_utils::{get_forecast_dates, ForecastPeriod};
 use std::sync::Arc;
 
-/// Main orchestrator for ensemble forecasts
 pub struct EnsembleOrchestrator {
     cache: Arc<ForecastCache<EnsembleForecast>>,
     openweather_key: String,
@@ -25,7 +24,6 @@ impl EnsembleOrchestrator {
         }
     }
 
-    /// Get forecast based on period (current week or next week)
     pub async fn get_forecast(
         &self,
         city: &City,
@@ -41,11 +39,9 @@ impl EnsembleOrchestrator {
         }
     }
 
-    /// Get current week forecast (7 days)
     async fn get_current_week(&self, city: &City) -> Result<EnsembleForecast, String> {
         let cache_key = format!("forecast:{}:current_week", city.name.to_lowercase());
 
-        // Try cache
         if let Some(cached) = self.cache.get(&cache_key).await {
             log::info!("[Orchestrator] Cache HIT: {}", city.name);
             return Ok(cached);
@@ -53,18 +49,15 @@ impl EnsembleOrchestrator {
 
         log::info!("[Orchestrator] Fetching current week for {}", city.name);
 
-        // Fetch ensemble data from all providers for 7 days
         let per_source_days = fetch_ensemble_week(
             city,
             &self.openweather_key,
             &self.weatherapi_key,
         ).await?;
 
-        // Get dates for current week
         let dates = get_forecast_dates(ForecastPeriod::CurrentWeek)
             .map_err(|e| format!("Date calculation error: {}", e))?;
 
-        // Build EnsembleForecast
         let mut forecast = EnsembleForecast::new(
             city.name.to_string(),
             city.province.to_string(),
@@ -78,10 +71,8 @@ impl EnsembleOrchestrator {
                 .ok_or_else(|| format!("Missing date for day {}", idx))?
                 .clone();
 
-            // Calculate final forecast values
             let (temp_max, temp_min, condition) = calculate_final_forecast(per_source, date.clone())?;
 
-            // Calculate confidence level
             let confidence = calculate_confidence(per_source, (temp_max, temp_min));
 
             let final_forecast = FinalForecast::new(temp_max, temp_min, condition, confidence);
@@ -90,7 +81,6 @@ impl EnsembleOrchestrator {
             forecast.add_day(day_ensemble);
         }
 
-        // Cache the result
         self.cache.insert(cache_key, forecast.clone()).await;
 
         log::info!("[Orchestrator] Successfully built ensemble forecast for {} with {} days", 
@@ -99,7 +89,7 @@ impl EnsembleOrchestrator {
         Ok(forecast)
     }
 
-    /// Get next week forecast (single day)
+    /// Ambil forecast minggu depan (satu hari)
     async fn get_next_week(&self, city: &City, base_day: u32) -> Result<EnsembleForecast, String> {
         if base_day > 6 {
             return Err(format!("Invalid day: {}", base_day));
@@ -111,7 +101,7 @@ impl EnsembleOrchestrator {
             base_day
         );
 
-        // Try cache
+        // Coba cek cache dulu
         if let Some(cached) = self.cache.get(&cache_key).await {
             log::info!("[Orchestrator] Cache HIT: next week");
             return Ok(cached);
@@ -119,7 +109,7 @@ impl EnsembleOrchestrator {
 
         log::info!("[Orchestrator] Fetching next week day {} for {}", base_day, city.name);
 
-        // Get the target date (D+7)
+        // Ambil tanggal target (D+7 minggu depan)
         let dates = get_forecast_dates(ForecastPeriod::NextWeek { base_day })
             .map_err(|e| format!("Date calculation error: {}", e))?;
 
@@ -130,17 +120,17 @@ impl EnsembleOrchestrator {
         let target_date = &dates[0];
         log::info!("[Orchestrator] Target D+7 date: {}", target_date);
 
-        // Fetch ensemble data from all providers for the next 7 days (to get D+7)
-        // We need to fetch all 7 days because providers give us sequential forecasts
+        // Ambil data ensemble untuk 7 hari ke depan (biar dapet D+7)
+        // Harus fetch 7 hari karena provider kasih forecast berurutan
         let per_source_days = fetch_ensemble_week(
             city,
             &self.openweather_key,
             &self.weatherapi_key,
         ).await?;
 
-        // Build EnsembleForecast with just this one day
-        // Note: For D+7, we're still showing a single-day forecast
-        // In a more advanced implementation, you might fetch 7-14 day forecasts
+        // Buat EnsembleForecast cuma untuk satu hari ini
+        // Catatan: Untuk D+7, kita cuma tampilkan forecast 1 hari
+        // Bisa lebih advanced kalau fetch forecast 7-14 hari
         let mut forecast = EnsembleForecast::new(
             city.name.to_string(),
             city.province.to_string(),
@@ -149,9 +139,9 @@ impl EnsembleOrchestrator {
             city.longitude,
         );
 
-        // For now, use the 7th day (index 6) as a proxy for D+7
-        // This is a limitation of free weather APIs that typically provide 7-day forecasts
-        let day_idx = 6; // Last day of the 7-day forecast
+        // Untuk sementara, pakai hari ke-7 (index 6) sebagai proxy D+7
+        // Ini limitasi API gratis yang biasanya cuma kasih 7 hari
+        let day_idx = 6; // Hari terakhir dari forecast 7 hari
         if let Some(per_source) = per_source_days.get(day_idx) {
             // Calculate final forecast values
             let (temp_max, temp_min, condition) = calculate_final_forecast(per_source, target_date.clone())?;
@@ -173,16 +163,5 @@ impl EnsembleOrchestrator {
         log::info!("[Orchestrator] Successfully built next week ensemble forecast for {}", city.name);
 
         Ok(forecast)
-    }
-
-    /// Get cache statistics
-    pub async fn cache_stats(&self) -> String {
-        let stats = self.cache.stats().await;
-        format!("Cache: {} entries, {} valid, {} expired, TTL: {}s",
-            stats.total_entries,
-            stats.valid_entries,
-            stats.expired_entries,
-            stats.ttl_seconds
-        )
     }
 }

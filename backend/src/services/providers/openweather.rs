@@ -6,42 +6,47 @@ use std::time::Duration;
 use log::info;
 use chrono::{DateTime, Utc};
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct OpenWeatherMain {
-    pub temp_max: f32,
-    pub temp_min: f32,
-    pub humidity: u32,
+macro_rules! api_struct {
+    ($name:ident { $($field:ident: $type:ty),+ $(,)? }) => {
+        #[derive(Debug, Deserialize, Serialize, Clone)]
+        pub struct $name {
+            $(pub $field: $type),+
+        }
+    };
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct OpenWeatherWeather {
-    pub main: String,
-    pub description: String,
-}
+// OpenWeatherMap macro
+api_struct!(OpenWeatherMain {
+    temp_max: f32,
+    temp_min: f32,
+    humidity: u32,
+});
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct OpenWeatherListItem {
-    pub dt: i64,
-    pub main: OpenWeatherMain,
-    pub weather: Vec<OpenWeatherWeather>,
-    pub wind: Option<OpenWeatherWind>,
-}
+api_struct!(OpenWeatherWeather {
+    main: String,
+    description: String,
+});
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct OpenWeatherWind {
-    pub speed: f32,
-}
+api_struct!(OpenWeatherWind {
+    speed: f32,
+});
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct OpenWeatherResponse {
-    pub list: Vec<OpenWeatherListItem>,
-}
+api_struct!(OpenWeatherListItem {
+    dt: i64,
+    main: OpenWeatherMain,
+    weather: Vec<OpenWeatherWeather>,
+    wind: Option<OpenWeatherWind>,
+});
+
+api_struct!(OpenWeatherResponse {
+    list: Vec<OpenWeatherListItem>,
+});
 
 pub async fn fetch_openweather(
     lat: f64,
     lon: f64,
     api_key: &str,
-) -> Result<Vec<DailyForecast>, Box<dyn Error>> {
+) -> Result<Vec<DailyForecast>, Box<dyn Error + Send + Sync>> {
     info!("Fetching weather from OpenWeatherMap provider for lat={}, lon={}", lat, lon);
 
     let client = Client::builder()
@@ -58,109 +63,111 @@ pub async fn fetch_openweather(
 
     info!("Successfully fetched OpenWeatherMap data");
 
-    // Normalize to DailyForecast
     let forecasts = normalize_openweather(&data)?;
     Ok(forecasts)
 }
 
-fn normalize_openweather(data: &OpenWeatherResponse) -> Result<Vec<DailyForecast>, Box<dyn Error>> {
+fn normalize_openweather(data: &OpenWeatherResponse) -> Result<Vec<DailyForecast>, Box<dyn Error + Send + Sync>> {
+    use std::collections::HashMap;
+    
     if data.list.is_empty() {
         return Err("No weather data available".into());
     }
 
-    let mut daily_forecasts: Vec<DailyForecast> = Vec::new();
-    let mut current_date = String::new();
-    let mut current_max_temp = f32::MIN;
-    let mut current_min_temp = f32::MAX;
-    let mut current_humidity = 0u32;
-    let mut current_wind_speed = 0.0f32;
-    let mut current_weather = String::new();
-    let mut current_icon = String::new();
-
-    for item in &data.list {
-        let dt = DateTime::<Utc>::from_timestamp(item.dt, 0)
-            .ok_or("Invalid timestamp")?;
-        let date = dt.format("%Y-%m-%d").to_string();
-
-        // If we're on a new day, save the previous day's forecast
-        if !current_date.is_empty() && current_date != date {
-            let temp_avg = (current_max_temp + current_min_temp) / 2.0;
-            daily_forecasts.push(DailyForecast {
-                date: current_date.clone(),
-                temp_max: current_max_temp,
-                temp_min: current_min_temp,
-                temp_avg,
-                condition: current_weather.clone(),
-                humidity: current_humidity,
-                wind_speed: current_wind_speed,
-                icon: current_icon.clone(),
-            });
-
-            current_max_temp = f32::MIN;
-            current_min_temp = f32::MAX;
-            #[allow(unused_assignments)]
-            {
-                current_humidity = 0;
-                current_wind_speed = 0.0;
+    // Group items by date using fold 
+    let grouped_by_date: HashMap<String, Vec<&OpenWeatherListItem>> = data.list.iter()
+        .fold(HashMap::new(), |mut acc, item| {
+            if let Some(dt) = DateTime::<Utc>::from_timestamp(item.dt, 0) {
+                let date = dt.format("%Y-%m-%d").to_string();
+                acc.entry(date).or_insert_with(Vec::new).push(item);
             }
-        }
-
-        current_date = date;
-        current_max_temp = current_max_temp.max(item.main.temp_max);
-        current_min_temp = current_min_temp.min(item.main.temp_min);
-        current_humidity = item.main.humidity;
-        current_wind_speed = item.wind.as_ref().map(|w| w.speed).unwrap_or(0.0);
-
-        if !item.weather.is_empty() {
-            let (condition, icon) = map_openweather_condition(&item.weather[0].main);
-            current_weather = condition.to_string();
-            current_icon = icon.to_string();
-        }
-    }
-
-    // Add the last day's forecast
-    if !current_date.is_empty() {
-        let temp_avg = (current_max_temp + current_min_temp) / 2.0;
-        daily_forecasts.push(DailyForecast {
-            date: current_date,
-            temp_max: current_max_temp,
-            temp_min: current_min_temp,
-            temp_avg,
-            condition: current_weather,
-            humidity: current_humidity,
-            wind_speed: current_wind_speed,
-            icon: current_icon,
+            acc
         });
-    }
 
-    // OpenWeatherMap provides 5 days, but we need 7 days
-    // Extrapolate last 2 days by repeating them
-    // Pad to 7 days by repeating the last day's data
-    while daily_forecasts.len() < 7 {
-        if let Some(last_day) = daily_forecasts.last() {
-            let mut new_day = last_day.clone();
-            // Calculate new date by adding days
-            let days_to_add = (daily_forecasts.len() as i64) - 4;
-            
-            // Parse the date string (format: YYYY-MM-DD)
-            let base_date = match chrono::NaiveDate::parse_from_str(&last_day.date, "%Y-%m-%d") {
-                Ok(d) => d,
-                Err(_) => chrono::Local::now().date_naive(),
-            };
-            
-            // Add days to the base date
-            if let Some(new_date) = base_date.checked_add_signed(chrono::Duration::days(days_to_add)) {
-                new_day.date = new_date.format("%Y-%m-%d").to_string();
-                daily_forecasts.push(new_day);
-            } else {
-                break;
+    // Konversi data yang sudah dikelompokkan menjadi forecast harian
+    let daily_forecasts: Vec<DailyForecast> = grouped_by_date
+        .into_iter()
+        .map(|(date, items)| {
+            // Agregasi data untuk sehari menggunakan fold (immutable accumulation)
+            let (max_temp, min_temp, last_humidity, last_wind, last_condition, last_icon) = items.iter()
+                .fold(
+                    (f32::MIN, f32::MAX, 0u32, 0.0f32, String::new(), String::new()),
+                    |(max_t, min_t, _, _, _, _), item| {
+                        let humidity = item.main.humidity;
+                        let wind = item.wind.as_ref().map(|w| w.speed).unwrap_or(0.0);
+                        let (condition, icon) = if !item.weather.is_empty() {
+                            let (c, i) = map_openweather_condition(&item.weather[0].main);
+                            (c.to_string(), i.to_string())
+                        } else {
+                            (String::new(), String::new())
+                        };
+                        
+                        (
+                            max_t.max(item.main.temp_max),
+                            min_t.min(item.main.temp_min),
+                            humidity,
+                            wind,
+                            condition,
+                            icon,
+                        )
+                    }
+                );
+
+            let temp_avg = (max_temp + min_temp) / 2.0;
+
+            DailyForecast {
+                date,
+                temp_max: max_temp,
+                temp_min: min_temp,
+                temp_avg,
+                condition: last_condition,
+                humidity: last_humidity,
+                wind_speed: last_wind,
+                icon: last_icon,
             }
-        } else {
-            break;
-        }
-    }
+        })
+        .collect();
 
-    Ok(daily_forecasts.into_iter().take(7).collect())
+    // Urutkan berdasarkan tanggal (immutable sort dengan sorted iterator)
+    let mut daily_forecasts = daily_forecasts;
+    daily_forecasts.sort_by(|a, b| a.date.cmp(&b.date));
+
+    // Perpanjang sampai 7 hari jika diperlukan (functional approach)
+    let daily_forecasts = if daily_forecasts.len() < 7 {
+        let additional_days: Vec<DailyForecast> = (daily_forecasts.len()..7)
+            .filter_map(|i| {
+                daily_forecasts.last().and_then(|last_day| {
+                    let days_to_add = (i as i64) - 4;
+                    chrono::NaiveDate::parse_from_str(&last_day.date, "%Y-%m-%d")
+                        .ok()
+                        .and_then(|base_date| base_date.checked_add_signed(chrono::Duration::days(days_to_add)))
+                        .map(|new_date| {
+                            // Buat forecast baru dengan tanggal yang diperbarui (immutable update)
+                            DailyForecast {
+                                date: new_date.format("%Y-%m-%d").to_string(),
+                                temp_max: last_day.temp_max,
+                                temp_min: last_day.temp_min,
+                                temp_avg: last_day.temp_avg,
+                                condition: last_day.condition.clone(),
+                                humidity: last_day.humidity,
+                                wind_speed: last_day.wind_speed,
+                                icon: last_day.icon.clone(),
+                            }
+                        })
+                })
+            })
+            .collect();
+
+        // Gabungkan forecast asli dengan hari tambahan
+        daily_forecasts.into_iter()
+            .chain(additional_days)
+            .take(7)
+            .collect()
+    } else {
+        daily_forecasts.into_iter().take(7).collect()
+    };
+
+    Ok(daily_forecasts)
 }
 
 fn map_openweather_condition(condition: &str) -> (&'static str, &'static str) {
@@ -169,10 +176,10 @@ fn map_openweather_condition(condition: &str) -> (&'static str, &'static str) {
         "clouds" => ("Cloudy", "cloudy"),
         "rain" => ("Rainy", "rainy"),
         "snow" => ("Snow", "snowy"),
-        "drizzle" => ("Drizzle", "rainy"),
+        "drizzle" => ("Rainy", "rainy"),  // Drizzle = Rainy untuk konsistensi
         "mist" | "smoke" | "haze" | "dust" | "fog" | "sand" | "ash" | "squall" | "tornado" => ("Foggy", "fog"),
         "thunderstorm" => ("Thunderstorm", "stormy"),
-        _ => ("Unknown", "cloudy"),
+        _ => ("Clear", "sunny"),  // Default ke Clear (bukan Unknown)
     }
 }
 

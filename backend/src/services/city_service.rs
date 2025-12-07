@@ -17,13 +17,14 @@ use log::debug;
 /// let city = find_city("Jakarta")?;
 /// println!("Found city: {} at ({}, {})", city.name, city.latitude, city.longitude);
 /// ```
-pub fn find_city(name: &str) -> Result<&'static City, ApiError> {
+pub fn find_city(name: &str) -> Result<City, ApiError> {
     let query = name.trim().to_lowercase();
     
     debug!("[CityService] Searching for city: '{}'", query);
     
     CITIES.iter()
         .find(|city| city.name.to_lowercase() == query)
+        .cloned()
         .ok_or_else(|| {
             debug!("[CityService] City not found: '{}'", name);
             ApiError::city_not_found(name)
@@ -61,17 +62,9 @@ pub fn validate_city_input(city: &str) -> Result<String, ApiError> {
 /// Gets all available cities from the database
 /// 
 /// # Returns
-/// * `&'static [City]` - Slice of all cities
-pub fn get_all_cities() -> &'static [City] {
-    CITIES
-}
-
-/// Gets the count of cities in the database
-/// 
-/// # Returns
-/// * `usize` - Number of cities available
-pub fn get_city_count() -> usize {
-    CITIES.len()
+/// * `Vec<City>` - Vector of all cities (cloned from static data)
+pub fn get_all_cities() -> Vec<City> {
+    CITIES.clone()
 }
 
 #[cfg(test)]
@@ -175,8 +168,8 @@ mod tests {
 
     #[test]
     fn test_get_city_count() {
-        let count = get_city_count();
-        assert!(count >= 50);
-        assert_eq!(count, CITIES.len());
+        let cities = get_all_cities();
+        assert!(cities.len() >= 50);
+        assert_eq!(cities.len(), CITIES.len());
     }
 }

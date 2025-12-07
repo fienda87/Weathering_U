@@ -7,7 +7,6 @@ use std::time::{Duration, Instant};
 use tokio::sync::Semaphore;
 use tokio::task::JoinHandle;
 
-/// Metrics for parallel forecast processing
 #[derive(Debug, Clone)]
 pub struct TaskMetrics {
     pub total_start_time: Instant,
@@ -67,7 +66,7 @@ impl TaskMetrics {
     }
 }
 
-/// Fetch 7-day forecast using parallel task spawning
+/// Spawn 7 task paralel untuk 7 hari
 pub async fn fetch_forecast_parallel(
     city: &City,
     openweather_key: &str,
@@ -78,7 +77,6 @@ pub async fn fetch_forecast_parallel(
     
     let mut handles: Vec<JoinHandle<Result<DailyForecast, String>>> = Vec::new();
 
-    // Spawn 7 tasks, 1 per day
     for day in 0..7 {
         let city_clone = city.clone();
         let openweather_key = openweather_key.to_string();
@@ -97,7 +95,6 @@ pub async fn fetch_forecast_parallel(
         info!("Spawned task for day {}", day);
     }
 
-    // Collect results from all 7 days
     info!("Waiting for all {} tasks to complete", handles.len());
     let results = join_all(handles).await;
 
@@ -160,7 +157,7 @@ pub async fn fetch_forecast_parallel(
     Ok(forecast)
 }
 
-/// Fetch 7-day forecast with semaphore-based rate limiting
+/// Rate limiting dengan semaphore: kontrol concurrent tasks
 pub async fn fetch_forecast_with_rate_limit(
     city: &City,
     semaphore: Arc<Semaphore>,
@@ -173,7 +170,6 @@ pub async fn fetch_forecast_with_rate_limit(
     
     let mut handles: Vec<JoinHandle<Result<DailyForecast, String>>> = Vec::new();
 
-    // Spawn 7 tasks with semaphore control
     for day in 0..7 {
         let city_clone = city.clone();
         let sem = semaphore.clone();
@@ -181,7 +177,6 @@ pub async fn fetch_forecast_with_rate_limit(
         let weatherapi_key = weatherapi_key.to_string();
         
         let handle = tokio::spawn(async move {
-            // Acquire semaphore permit (this will block if limit reached)
             let _permit = match sem.acquire().await {
                 Ok(permit) => {
                     info!("Day {}: Acquired semaphore permit", day);
@@ -196,7 +191,6 @@ pub async fn fetch_forecast_with_rate_limit(
             info!("Day {}: Starting processing with semaphore protection", day);
             let result = process_day(day, &city_clone, &openweather_key, &weatherapi_key).await;
             
-            // Permit is automatically released when _permit goes out of scope
             info!("Day {}: Released semaphore permit", day);
             result
         });
@@ -271,7 +265,7 @@ pub async fn fetch_forecast_with_rate_limit(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{City, DailyForecast};
+    use crate::models::City;
     use std::sync::Arc;
     use tokio::sync::Semaphore;
 

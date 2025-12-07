@@ -7,20 +7,18 @@ pub mod providers;
 pub mod weather_service;
 pub mod daily_processor;
 pub mod parallel_forecast;
-pub mod ensemble;
 pub mod ensemble_fetcher;
-pub mod ensemble_nextweek;
 pub mod ensemble_orchestrator;
 pub mod confidence_calculator;
 pub mod city_service;
 
-pub use cache::{ForecastCache, CachedEntry, CacheStats};
+pub use cache::ForecastCache;
 pub use weather_service::WeatherService;
-pub use parallel_forecast::{fetch_forecast_parallel, fetch_forecast_with_rate_limit, TaskMetrics};
-pub use ensemble_nextweek::{fetch_next_week_ensemble, fetch_ensemble_day_offset};
+
+
 pub use ensemble_orchestrator::EnsembleOrchestrator;
-pub use confidence_calculator::calculate_confidence;
-pub use city_service::{find_city, validate_city_input, get_all_cities, get_city_count};
+
+pub use city_service::{find_city, validate_city_input, get_all_cities};
 
 #[allow(dead_code)]
 pub struct ApiService {

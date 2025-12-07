@@ -20,44 +20,32 @@ use runtime::{init_runtime, log_runtime_config, WorkerPool, get_worker_count};
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 3)]
 async fn main() {
-    // Load .env file
     dotenvy::dotenv().ok();
-
-    // Initialize logger first
     init_logger();
-
-    // Initialize runtime configuration
     init_runtime();
     log_runtime_config();
-
-    // Initialize configuration
     let config = Config::from_env();
 
     info!("Starting IndoPrint API server on port {}", config.server_port);
 
-    // Create worker pool for parallel forecast processing
     let worker_count = get_worker_count();
     let worker_pool = Arc::new(WorkerPool::new(worker_count));
-
-    // Create semaphore for rate limiting (max 3 concurrent API calls)
     let semaphore = Arc::new(Semaphore::new(3));
     info!("Created rate limiting semaphore with 3 permits");
 
-    // Create weather service
     let weather_service = WeatherService::new(
         config.openweather_key.clone(),
         config.weatherapi_key.clone(),
     );
 
-    // Create ensemble forecast cache (1 hour TTL, 100 entries max)
+    // Cache ensemble forecast: TTL 1 jam, max 100 entries
     let ensemble_cache = Arc::new(ForecastCache::<EnsembleForecast>::new(3600, 100));
     info!("Created ensemble forecast cache with 1 hour TTL");
 
-    // Setup shutdown notification
     let shutdown = Arc::new(Notify::new());
     let shutdown_clone = shutdown.clone();
 
-    // Spawn signal handler for graceful shutdown
+    // Handle graceful shutdown (CTRL-C / SIGTERM)
     tokio::spawn(async move {
         let ctrl_c = async {
             tokio::signal::ctrl_c()
@@ -88,7 +76,6 @@ async fn main() {
         shutdown_clone.notify_one();
     });
 
-    // Configure CORS
     let allowed_origins = AllowedOrigins::some_exact(&config.cors_origins);
     let cors = CorsOptions {
         allowed_origins,
@@ -108,7 +95,6 @@ async fn main() {
     .to_cors()
     .expect("Error creating CORS");
 
-    // Configure Rocket
     let figment = rocket::Config::figment()
         .merge(("port", config.server_port))
         .merge(("address", "0.0.0.0"));
@@ -132,17 +118,14 @@ async fn main() {
         }))
         .mount("/", routes());
 
-    // Launch rocket and wait for shutdown signal
     let launch_task = tokio::spawn(async move {
         let _ = rocket_instance.launch().await;
     });
 
-    // Wait for shutdown signal
     shutdown.notified().await;
 
     info!("Shutdown signal received, waiting for pending tasks to complete...");
 
-    // Cancel the launch task
     launch_task.abort();
 
     info!("Server shutdown complete");

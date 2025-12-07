@@ -1,54 +1,11 @@
 use crate::models::City;
+use once_cell::sync::Lazy;
 
-pub const CITIES: &[City] = &[
-    City { id: 1, name: "Jakarta", province: "DKI Jakarta", latitude: -6.2088, longitude: 106.8456 },
-    City { id: 2, name: "Surabaya", province: "Jawa Timur", latitude: -7.2504, longitude: 112.7688 },
-    City { id: 3, name: "Bandung", province: "Jawa Barat", latitude: -6.9271, longitude: 107.6411 },
-    City { id: 4, name: "Medan", province: "Sumatera Utara", latitude: 3.1952, longitude: 98.6722 },
-    City { id: 5, name: "Bekasi", province: "Jawa Barat", latitude: -6.2349, longitude: 106.9896 },
-    City { id: 6, name: "Depok", province: "Jawa Barat", latitude: -6.4029, longitude: 106.8231 },
-    City { id: 7, name: "Tangerang", province: "Banten", latitude: -6.1728, longitude: 106.6326 },
-    City { id: 8, name: "Tangerang Selatan", province: "Banten", latitude: -6.2957, longitude: 106.7338 },
-    City { id: 9, name: "Semarang", province: "Jawa Tengah", latitude: -6.9667, longitude: 110.4167 },
-    City { id: 10, name: "Makassar", province: "Sulawesi Selatan", latitude: -5.3520, longitude: 119.4432 },
-    City { id: 11, name: "Palembang", province: "Sumatera Selatan", latitude: -2.9760, longitude: 104.7553 },
-    City { id: 12, name: "Batam", province: "Kepulauan Riau", latitude: 1.1271, longitude: 104.0073 },
-    City { id: 13, name: "Bogor", province: "Jawa Barat", latitude: -6.6007, longitude: 106.7957 },
-    City { id: 14, name: "Bandar Lampung", province: "Lampung", latitude: -5.3971, longitude: 105.2668 },
-    City { id: 15, name: "Pekanbaru", province: "Riau", latitude: 0.5071, longitude: 101.4472 },
-    City { id: 16, name: "Denpasar", province: "Bali", latitude: -8.6705, longitude: 115.2126 },
-    City { id: 17, name: "Malang", province: "Jawa Timur", latitude: -7.9827, longitude: 112.6345 },
-    City { id: 18, name: "Yogyakarta", province: "DI Yogyakarta", latitude: -7.7956, longitude: 110.3695 },
-    City { id: 19, name: "Padang", province: "Sumatera Barat", latitude: -0.9492, longitude: 100.4172 },
-    City { id: 20, name: "Manado", province: "Sulawesi Utara", latitude: 1.4748, longitude: 124.8628 },
-    City { id: 21, name: "Banjarmasin", province: "Kalimantan Selatan", latitude: -3.3286, longitude: 114.5904 },
-    City { id: 22, name: "Pontianak", province: "Kalimantan Barat", latitude: -0.0263, longitude: 109.3425 },
-    City { id: 23, name: "Balikpapan", province: "Kalimantan Timur", latitude: -1.2671, longitude: 116.8326 },
-    City { id: 24, name: "Samarinda", province: "Kalimantan Timur", latitude: -0.5, longitude: 117.1667 },
-    City { id: 25, name: "Mataram", province: "NTB", latitude: -8.6500, longitude: 116.6333 },
-    City { id: 26, name: "Kupang", province: "NTT", latitude: -10.1667, longitude: 123.6167 },
-    City { id: 27, name: "Bengkulu", province: "Bengkulu", latitude: -3.8003, longitude: 102.2718 },
-    City { id: 28, name: "Jambi", province: "Jambi", latitude: -1.6114, longitude: 103.6111 },
-    City { id: 29, name: "Surakarta", province: "Jawa Tengah", latitude: -7.5505, longitude: 110.8063 },
-    City { id: 30, name: "Magelang", province: "Jawa Tengah", latitude: -7.4744, longitude: 110.2144 },
-    City { id: 31, name: "Cirebon", province: "Jawa Barat", latitude: -6.7049, longitude: 108.4449 },
-    City { id: 32, name: "Tasikmalaya", province: "Jawa Barat", latitude: -7.3245, longitude: 108.2256 },
-    City { id: 33, name: "Cimahi", province: "Jawa Barat", latitude: -6.8869, longitude: 107.5436 },
-    City { id: 34, name: "Kediri", province: "Jawa Timur", latitude: -7.2452, longitude: 111.9015 },
-    City { id: 35, name: "Madiun", province: "Jawa Timur", latitude: -7.6309, longitude: 111.5278 },
-    City { id: 36, name: "Tegal", province: "Jawa Tengah", latitude: -6.8689, longitude: 109.1433 },
-    City { id: 37, name: "Pekalongan", province: "Jawa Tengah", latitude: -6.8902, longitude: 109.6867 },
-    City { id: 38, name: "Probolinggo", province: "Jawa Timur", latitude: -7.7252, longitude: 112.7920 },
-    City { id: 39, name: "Pasuruan", province: "Jawa Timur", latitude: -7.6428, longitude: 112.9064 },
-    City { id: 40, name: "Mojokerto", province: "Jawa Timur", latitude: -7.4728, longitude: 112.4292 },
-    City { id: 41, name: "Serang", province: "Banten", latitude: -6.4042, longitude: 106.1496 },
-    City { id: 42, name: "Ambon", province: "Maluku", latitude: -3.6959, longitude: 128.1814 },
-    City { id: 43, name: "Ternate", province: "Maluku Utara", latitude: 0.7934, longitude: 127.3795 },
-    City { id: 44, name: "Jayapura", province: "Papua", latitude: -2.5897, longitude: 140.6695 },
-    City { id: 45, name: "Manokwari", province: "Papua Barat", latitude: -0.8667, longitude: 131.0836 },
-    City { id: 46, name: "Gorontalo", province: "Gorontalo", latitude: 0.5272, longitude: 123.0564 },
-    City { id: 47, name: "Kendari", province: "Sulawesi Tenggara", latitude: -3.9693, longitude: 122.5105 },
-    City { id: 48, name: "Palu", province: "Sulawesi Tengah", latitude: -0.8917, longitude: 119.8701 },
-    City { id: 49, name: "Banda Aceh", province: "Aceh", latitude: 5.5577, longitude: 95.3222 },
-    City { id: 50, name: "Solo", province: "Jawa Tengah", latitude: -7.5505, longitude: 110.8063 },
-];
+// Embed JSON file at compile-time (zero runtime I/O cost!)
+const CITIES_JSON: &str = include_str!("../data/cities.json");
+
+// Parse JSON once at startup and cache (lazy initialization)
+pub static CITIES: Lazy<Vec<City>> = Lazy::new(|| {
+    serde_json::from_str(CITIES_JSON)
+        .expect("Failed to parse cities.json - check data/cities.json for valid JSON format")
+});

@@ -7,8 +7,12 @@ use crate::services::providers::{
 use log::{info, warn};
 use futures::future::join_all;
 
-/// Fetch ensemble data from all 3 providers for a specific day
-/// Returns PerSourceData with data from each provider that succeeded
+/// Helper untuk cek apakah API key valid
+fn is_valid_api_key(key: &str) -> bool {
+    !key.is_empty() && key != "your-key-here"
+}
+
+/// Fetch paralel ke 3 provider, kumpulkan data yang berhasil
 pub async fn fetch_ensemble_day(
     day: usize,
     city: &City,
@@ -17,20 +21,39 @@ pub async fn fetch_ensemble_day(
 ) -> Result<PerSourceData, String> {
     info!("[Ensemble] Fetching day {} for {} from all providers", day, city.name);
     
-    // Spawn all 3 provider fetches in parallel
     let open_meteo_task = fetch_open_meteo(city.latitude, city.longitude);
     let open_weather_task = fetch_openweather(city.latitude, city.longitude, openweather_key);
     let weather_api_task = fetch_weatherapi(city.name, weatherapi_key);
     
-    // Wait for all to complete
     let results = tokio::join!(open_meteo_task, open_weather_task, weather_api_task);
     
-    let mut per_source = PerSourceData::new();
+    // Process Open-Meteo (always processed, free API)
+    let per_source = match &results.0 {
+        Ok(forecast) if forecast.len() > day => {
+            let daily = &forecast[day];
+            let provider_forecast = ProviderForecast::new(
+                daily.date.clone(),
+                daily.temp_max,
+                daily.temp_min,
+                daily.condition.clone(),
+            );
+            info!("[Ensemble] Open-Meteo data available for day {}", day);
+            PerSourceData::new().with_open_meteo(provider_forecast)
+        }
+        Ok(_) => {
+            warn!("[Ensemble] Open-Meteo returned insufficient data for day {}", day);
+            PerSourceData::new()
+        }
+        Err(e) => {
+            warn!("[Ensemble] Open-Meteo failed: {}", e);
+            PerSourceData::new()
+        }
+    };
     
-    // Process Open-Meteo result
-    match results.0 {
-        Ok(forecast) => {
-            if forecast.len() > day {
+    // Process OpenWeatherMap (if API key valid)
+    let per_source = if is_valid_api_key(openweather_key) {
+        match &results.1 {
+            Ok(forecast) if forecast.len() > day => {
                 let daily = &forecast[day];
                 let provider_forecast = ProviderForecast::new(
                     daily.date.clone(),
@@ -38,70 +61,64 @@ pub async fn fetch_ensemble_day(
                     daily.temp_min,
                     daily.condition.clone(),
                 );
-                per_source = per_source.with_open_meteo(provider_forecast);
-                info!("[Ensemble] Open-Meteo data available for day {}", day);
-            } else {
-                warn!("[Ensemble] Open-Meteo returned insufficient data for day {}", day);
+                info!("[Ensemble] OpenWeatherMap data available for day {}", day);
+                per_source.with_open_weather(provider_forecast)
             }
-        }
-        Err(e) => {
-            warn!("[Ensemble] Open-Meteo failed: {}", e);
-        }
-    }
-    
-    // Process OpenWeatherMap result
-    if !openweather_key.is_empty() && openweather_key != "your-key-here" {
-        match results.1 {
-            Ok(forecast) => {
-                if forecast.len() > day {
-                    let daily = &forecast[day];
-                    let provider_forecast = ProviderForecast::new(
-                        daily.date.clone(),
-                        daily.temp_max,
-                        daily.temp_min,
-                        daily.condition.clone(),
-                    );
-                    per_source = per_source.with_open_weather(provider_forecast);
-                    info!("[Ensemble] OpenWeatherMap data available for day {}", day);
-                } else {
-                    warn!("[Ensemble] OpenWeatherMap returned insufficient data for day {}", day);
-                }
+            Ok(_) => {
+                warn!("[Ensemble] OpenWeatherMap returned insufficient data for day {}", day);
+                per_source
             }
             Err(e) => {
                 warn!("[Ensemble] OpenWeatherMap failed: {}", e);
+                per_source
             }
         }
     } else {
         warn!("[Ensemble] OpenWeatherMap API key not configured");
-    }
+        per_source
+    };
     
-    // Process WeatherAPI result
-    if !weatherapi_key.is_empty() && weatherapi_key != "your-key-here" {
-        match results.2 {
-            Ok(forecast) => {
-                if forecast.len() > day {
-                    let daily = &forecast[day];
-                    let provider_forecast = ProviderForecast::new(
-                        daily.date.clone(),
-                        daily.temp_max,
-                        daily.temp_min,
-                        daily.condition.clone(),
-                    );
-                    per_source = per_source.with_weather_api(provider_forecast);
-                    info!("[Ensemble] WeatherAPI data available for day {}", day);
-                } else {
-                    warn!("[Ensemble] WeatherAPI returned insufficient data for day {}", day);
-                }
+    // Process WeatherAPI (if API key valid)
+    let per_source = if is_valid_api_key(weatherapi_key) {
+        match &results.2 {
+            Ok(forecast) if forecast.len() > day => {
+                let daily = &forecast[day];
+                let provider_forecast = ProviderForecast::new(
+                    daily.date.clone(),
+                    daily.temp_max,
+                    daily.temp_min,
+                    daily.condition.clone(),
+                );
+                info!("[Ensemble] WeatherAPI data available for day {}", day);
+                per_source.with_weather_api(provider_forecast)
+            }
+            Ok(_) => {
+                warn!("[Ensemble] WeatherAPI returned insufficient data for day {}", day);
+                per_source
             }
             Err(e) => {
-                warn!("[Ensemble] WeatherAPI failed: {}", e);
+                // Graceful degradation: timeout tidak fatal
+                let error_str = e.to_string();
+                if error_str.contains("deadline has elapsed") || error_str.contains("timed out") {
+                    // Timeout adalah common issue - log sebagai info saja
+                    info!("[Ensemble] WeatherAPI timeout for {} day {} (continuing with {}/3 providers)", 
+                          city.name, day, per_source.provider_count());
+                } else if error_str.contains("connect") {
+                    info!("[Ensemble] WeatherAPI connection issue for {} day {} (continuing with {}/3 providers)", 
+                          city.name, day, per_source.provider_count());
+                } else {
+                    warn!("[Ensemble] WeatherAPI error for {} day {}: {} (continuing with {}/3 providers)", 
+                          city.name, day, e, per_source.provider_count());
+                }
+                per_source
             }
         }
     } else {
-        warn!("[Ensemble] WeatherAPI key not configured");
-    }
+        info!("[Ensemble] WeatherAPI key not configured (using Open-Meteo + OpenWeatherMap only)");
+        per_source
+    };
     
-    // Check if we got at least one provider
+    // Validate at least one provider succeeded
     if per_source.provider_count() == 0 {
         return Err(format!("All providers failed for day {}", day));
     }
@@ -110,7 +127,31 @@ pub async fn fetch_ensemble_day(
     Ok(per_source)
 }
 
-/// Calculate final forecast from per-source data
+/// Normalisasi condition dari berbagai provider ke kategori standar
+fn normalize_condition(condition: &str) -> &'static str {
+    let condition_lower = condition.to_lowercase();
+    
+    // Mapping berdasarkan keyword (prioritas dari paling spesifik)
+    if condition_lower.contains("thunder") || condition_lower.contains("storm") {
+        "Thunderstorm"
+    } else if condition_lower.contains("snow") || condition_lower.contains("salju") {
+        "Snow"
+    } else if condition_lower.contains("rain") || condition_lower.contains("hujan") || condition_lower.contains("drizzle") {
+        "Rainy"
+    } else if condition_lower.contains("fog") || condition_lower.contains("mist") || condition_lower.contains("kabut") {
+        "Foggy"
+    } else if condition_lower.contains("cloud") || condition_lower.contains("berawan") || condition_lower.contains("overcast") {
+        "Cloudy"
+    } else if condition_lower.contains("clear") || condition_lower.contains("sunny") || condition_lower.contains("cerah") {
+        "Clear"
+    } else if condition_lower.contains("partly") {
+        "Partly Cloudy"
+    } else {
+        "Clear"  // Default fallback
+    }
+}
+
+/// Rata-rata suhu, ambil kondisi yang paling sering muncul (dengan normalisasi)
 pub fn calculate_final_forecast(per_source: &PerSourceData, _date: String) -> Result<(f32, f32, String), String> {
     let (max_temps, min_temps) = per_source.extract_temperatures();
     let conditions = per_source.get_conditions();
@@ -119,31 +160,36 @@ pub fn calculate_final_forecast(per_source: &PerSourceData, _date: String) -> Re
         return Err("No temperature data available".to_string());
     }
     
-    // Calculate average temperatures
     let final_temp_max: f32 = max_temps.iter().sum::<f32>() / max_temps.len() as f32;
     let final_temp_min: f32 = min_temps.iter().sum::<f32>() / min_temps.len() as f32;
     
-    // Use most common condition (or first if tie)
     let final_condition = if conditions.is_empty() {
-        "Unknown".to_string()
+        "Clear".to_string()
     } else {
-        // Count condition occurrences
-        let mut counts = std::collections::HashMap::new();
-        for cond in &conditions {
-            *counts.entry(cond.clone()).or_insert(0) += 1;
-        }
+        // Normalisasi semua condition sebelum voting
+        let normalized_conditions: Vec<&'static str> = conditions
+            .iter()
+            .map(|c| normalize_condition(c))
+            .collect();
         
-        // Find most common
+        // Count occurrences dari normalized conditions
+        let counts = normalized_conditions.iter()
+            .fold(std::collections::HashMap::new(), |mut acc, cond| {
+                *acc.entry(*cond).or_insert(0) += 1;
+                acc
+            });
+        
+        // Ambil kondisi dengan vote terbanyak
         counts.into_iter()
             .max_by_key(|(_, count)| *count)
-            .map(|(cond, _)| cond)
-            .unwrap_or_else(|| conditions[0].clone())
+            .map(|(cond, _)| cond.to_string())
+            .unwrap_or_else(|| "Clear".to_string())
     };
     
     Ok((final_temp_max, final_temp_min, final_condition))
 }
 
-/// Fetch ensemble forecasts for 7 days in parallel
+/// Fetch 7 hari secara paralel
 pub async fn fetch_ensemble_week(
     city: &City,
     openweather_key: &str,
@@ -151,35 +197,31 @@ pub async fn fetch_ensemble_week(
 ) -> Result<Vec<PerSourceData>, String> {
     info!("[Ensemble] Fetching 7-day ensemble for {}", city.name);
     
-    let mut futures = Vec::new();
+    // BUAT futures UNTUK 7 HARI
+    let futures: Vec<_> = (0..7)
+        .map(|day| fetch_ensemble_day(day, city, openweather_key, weatherapi_key))
+        .collect();
     
-    // Create futures for each day
-    for day in 0..7 {
-        let future = fetch_ensemble_day(day, city, openweather_key, weatherapi_key);
-        futures.push(future);
-    }
-    
-    // Wait for all futures to complete in parallel
     let results = join_all(futures).await;
     
-    let mut per_source_days = Vec::new();
-    let mut failed_count = 0;
-    
-    for (day_idx, result) in results.into_iter().enumerate() {
-        match result {
-            Ok(per_source) => {
-                per_source_days.push(per_source);
+    // Process results 
+    let (per_source_days, failed_count): (Vec<PerSourceData>, usize) = results
+        .into_iter()
+        .enumerate()
+        .fold((Vec::new(), 0), |(mut days, fails), (day_idx, result)| {
+            match result {
+                Ok(per_source) => {
+                    days.push(per_source);
+                    (days, fails)
+                }
+                Err(e) => {
+                    warn!("[Ensemble] Day {} failed: {}", day_idx, e);
+                    days.push(PerSourceData::new());
+                    (days, fails + 1)
+                }
             }
-            Err(e) => {
-                warn!("[Ensemble] Day {} failed: {}", day_idx, e);
-                failed_count += 1;
-                // Add empty per-source for failed days
-                per_source_days.push(PerSourceData::new());
-            }
-        }
-    }
+        });
     
-    // Require at least 3 successful days
     if failed_count > 4 {
         return Err(format!("Too many failed days: {}/7", failed_count));
     }
@@ -207,11 +249,10 @@ mod tests {
     async fn test_fetch_ensemble_day_structure() {
         let city = create_test_city();
         
-        // This will likely fail with invalid keys, but tests structure
+       
         let result = fetch_ensemble_day(0, &city, "invalid", "invalid").await;
         
-        // Should return either Ok with at least Open-Meteo or Err
-        // Open-Meteo is free and should work
+       
         if let Ok(per_source) = result {
             assert!(per_source.provider_count() >= 1);
         }
@@ -247,5 +288,13 @@ mod tests {
         let per_source = PerSourceData::new();
         let result = calculate_final_forecast(&per_source, "2024-01-01".to_string());
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_is_valid_api_key() {
+        assert!(!is_valid_api_key(""));
+        assert!(!is_valid_api_key("your-key-here"));
+        assert!(is_valid_api_key("valid-api-key-123"));
+        assert!(is_valid_api_key("abc123xyz"));
     }
 }

@@ -22,7 +22,7 @@ pub struct OpenMeteoResponse {
 pub async fn fetch_open_meteo(
     lat: f64,
     lon: f64,
-) -> Result<Vec<DailyForecast>, Box<dyn Error>> {
+) -> Result<Vec<DailyForecast>, Box<dyn Error + Send + Sync>> {
     info!("Fetching weather from Open-Meteo provider for lat={}, lon={}", lat, lon);
 
     let client = Client::builder()
@@ -39,57 +39,54 @@ pub async fn fetch_open_meteo(
 
     info!("Successfully fetched Open-Meteo data");
 
-    // Normalize to DailyForecast
     let forecasts = normalize_open_meteo(&data)?;
     Ok(forecasts)
 }
 
-fn normalize_open_meteo(data: &OpenMeteoResponse) -> Result<Vec<DailyForecast>, Box<dyn Error>> {
-    let mut forecasts = Vec::new();
+fn normalize_open_meteo(data: &OpenMeteoResponse) -> Result<Vec<DailyForecast>, Box<dyn Error + Send + Sync>> {
     let daily = &data.daily;
-
-    // Take only first 7 days
     let days_count = std::cmp::min(7, daily.time.len());
 
-    for i in 0..days_count {
-        let temp_max = daily.temperature_2m_max[i];
-        let temp_min = daily.temperature_2m_min[i];
-        let temp_avg = (temp_max + temp_min) / 2.0;
-        let humidity = daily.relative_humidity_2m_mean[i];
-        let weather_code = daily.weather_code[i];
+    // Functional approach: map iterator to create forecasts
+    let forecasts = (0..days_count)
+        .map(|i| {
+            let temp_max = daily.temperature_2m_max[i];
+            let temp_min = daily.temperature_2m_min[i];
+            let temp_avg = (temp_max + temp_min) / 2.0;
+            let humidity = daily.relative_humidity_2m_mean[i];
+            let weather_code = daily.weather_code[i];
+            let (condition, icon) = map_wmo_code(weather_code);
 
-        let (condition, icon) = map_wmo_code(weather_code);
-
-        forecasts.push(DailyForecast {
-            date: daily.time[i].clone(),
-            temp_max,
-            temp_min,
-            temp_avg,
-            condition,
-            humidity,
-            wind_speed: 0.0, // Open-Meteo free tier doesn't provide wind_speed in daily forecast
-            icon,
-        });
-    }
+            DailyForecast {
+                date: daily.time[i].clone(),
+                temp_max,
+                temp_min,
+                temp_avg,
+                condition,
+                humidity,
+                wind_speed: 0.0,
+                icon,
+            }
+        })
+        .collect();
 
     Ok(forecasts)
 }
 
-/// Maps WMO weather codes to readable conditions and icons
 fn map_wmo_code(code: i32) -> (String, String) {
+    // Normalisasi ke kategori standar untuk konsistensi ensemble
     let (condition, icon) = match code {
-        0 => ("Clear sky", "sunny"),
-        1 | 2 => ("Mostly clear", "sunny"),
-        3 => ("Overcast", "cloudy"),
+        0 => ("Clear", "sunny"),  // Clear sky → Clear
+        1 | 2 => ("Clear", "sunny"),  // Mostly clear → Clear
+        3 => ("Cloudy", "cloudy"),  // Overcast → Cloudy
         45 | 48 => ("Foggy", "fog"),
-        51 | 53 | 55 => ("Light drizzle", "rainy"),
-        61 | 63 | 65 => ("Rain", "rainy"),
-        71 | 73 | 75 => ("Snow", "snowy"),
-        77 => ("Snow grains", "snowy"),
-        80 | 82 | 81 => ("Rain showers", "rainy"),
-        85 | 86 => ("Snow showers", "snowy"),
+        51 | 53 | 55 => ("Rainy", "rainy"),  // Light drizzle → Rainy
+        61 | 63 | 65 => ("Rainy", "rainy"),  // Rain → Rainy
+        71 | 73 | 75 | 77 => ("Snow", "snowy"),  // All snow types → Snow
+        80 | 81 | 82 => ("Rainy", "rainy"),  // Rain showers → Rainy
+        85 | 86 => ("Snow", "snowy"),  // Snow showers → Snow
         95 | 96 | 99 => ("Thunderstorm", "stormy"),
-        _ => ("Unknown", "cloudy"),
+        _ => ("Clear", "sunny"),  // Default ke Clear
     };
     (condition.to_string(), icon.to_string())
 }

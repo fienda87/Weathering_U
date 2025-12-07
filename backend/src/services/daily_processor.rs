@@ -8,7 +8,7 @@ use log::{info, warn, error};
 use std::time::{Duration, Instant};
 use tokio::time::timeout;
 
-/// Process a single day's forecast with timeout and error handling
+/// Proses forecast untuk satu hari dengan timeout dan error handling
 pub async fn process_day(
     day: usize,
     city: &City,
@@ -18,9 +18,9 @@ pub async fn process_day(
     let start_time = Instant::now();
     info!("Starting processing day {} for city: {} ({})", day, city.name, city.province);
     
-    // 5 second timeout per day
+    // Timeout 5 detik per hari
     let process_result = timeout(Duration::from_secs(5), async {
-        // Try Open-Meteo first (free, no API key needed)
+        // Coba Open-Meteo dulu (gratis, gak butuh API key)
         info!("Day {}: Attempting Open-Meteo provider", day);
         match fetch_open_meteo(city.latitude, city.longitude).await {
             Ok(mut forecast) => {
@@ -35,7 +35,7 @@ pub async fn process_day(
             }
         }
 
-        // Try OpenWeatherMap if API key is available
+        // Coba OpenWeatherMap kalau API key-nya ada
         if !openweather_key.is_empty() && openweather_key != "your-key-here" {
             info!("Day {}: Attempting OpenWeatherMap provider", day);
             match fetch_openweather(city.latitude, city.longitude, openweather_key).await {
@@ -54,7 +54,7 @@ pub async fn process_day(
             warn!("Day {}: OpenWeatherMap API key not configured", day);
         }
 
-        // Try WeatherAPI if API key is available
+        // Coba WeatherAPI kalau API key-nya ada
         if !weatherapi_key.is_empty() && weatherapi_key != "your-key-here" {
             info!("Day {}: Attempting WeatherAPI provider", day);
             match fetch_weatherapi(city.name, weatherapi_key).await {

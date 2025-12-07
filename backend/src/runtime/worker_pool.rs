@@ -4,7 +4,7 @@ use std::future::Future;
 use std::time::Instant;
 use log::debug;
 
-/// Worker pool for managing concurrent task execution with rate limiting
+/// Worker pool untuk manage eksekusi task concurrent dengan rate limiting
 #[allow(dead_code)]
 pub struct WorkerPool {
     worker_threads: usize,
@@ -12,7 +12,7 @@ pub struct WorkerPool {
 }
 
 impl WorkerPool {
-    /// Create a new worker pool with specified number of workers
+    /// Buat worker pool baru dengan jumlah worker tertentu
     pub fn new(num_workers: usize) -> Self {
         debug!("Creating worker pool with {} workers", num_workers);
         Self {
@@ -21,19 +21,19 @@ impl WorkerPool {
         }
     }
 
-    /// Get the number of worker threads
+    /// Ambil jumlah worker thread
     #[allow(dead_code)]
     pub fn worker_count(&self) -> usize {
         self.worker_threads
     }
 
-    /// Get the available permits in the semaphore
+    /// Ambil jumlah permit yang tersedia di semaphore
     #[allow(dead_code)]
     pub fn available_permits(&self) -> usize {
         self.semaphore.available_permits()
     }
 
-    /// Execute a task with rate limiting via semaphore
+    /// Eksekusi task dengan rate limiting pakai semaphore
     #[allow(dead_code)]
     pub async fn execute_task<F, Fut, T>(&self, task: F) -> Result<T, String>
     where
@@ -52,7 +52,7 @@ impl WorkerPool {
 
         let result = tokio::spawn(async move {
             let task_result = task().await;
-            drop(permit); // Release semaphore permit
+            drop(permit); // Lepas permit semaphore
             task_result
         })
         .await
@@ -68,7 +68,7 @@ impl WorkerPool {
         Ok(result)
     }
 
-    /// Execute multiple tasks in parallel with rate limiting
+    /// Eksekusi banyak task secara parallel dengan rate limiting
     #[allow(dead_code)]
     pub async fn execute_batch<F, Fut, T>(
         &self,
